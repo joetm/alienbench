@@ -71,7 +71,7 @@ judge_overrides:
 primary_metric: ward
 
 # Number of samples per model per prompt variant
-samples_per_condition: 3 # 50
+samples_per_condition: 50
 
 # Generation parameters
 temperature: 1.0

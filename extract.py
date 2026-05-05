@@ -185,7 +185,7 @@ def run(
                             response = judge_clients[judge].complete(
                                 prompt=prompt,
                                 temperature=0.0,
-                                max_tokens=1200,
+                                max_tokens=2500,
                                 system=_SYSTEM,
                             )
                             total_prompt_tokens += response.prompt_tokens
