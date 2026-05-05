@@ -1,0 +1,26 @@
+# Minimal config for end-to-end smoke testing against the real API.
+# Uses a single cheap model for both subject and judge to minimise cost.
+models:
+  - openai/gpt-4o-mini
+
+judge_models:
+  - openai/gpt-4o-mini
+
+samples_per_condition: 3
+max_tokens: 400
+
+prompt_variants:
+  - id: baseline
+    label: "Baseline"
+    text: "Imagine a creature that lives on an alien planet. Describe it in detail."
+
+prompt_paraphrases:
+  - id: baseline
+    label: "Baseline"
+    text: "Imagine a creature that lives on an alien planet. Describe it in detail."
+  - id: baseline_para_a
+    label: "Paraphrase A"
+    text: "Picture an organism native to a planet other than Earth. Write a detailed description of it."
+
+data_dir: test_data
+results_dir: test_results

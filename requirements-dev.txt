@@ -1,0 +1,10 @@
+# Development dependencies for AlienBench. Install on top of
+# requirements.txt to run the test suite:
+#
+#     pip install -r alienbench/requirements.txt -r alienbench/requirements-dev.txt
+#     python3 -m pytest alienbench/tests
+#
+-r requirements.txt
+
+pytest==8.4.1
+pytest-mock==3.14.1

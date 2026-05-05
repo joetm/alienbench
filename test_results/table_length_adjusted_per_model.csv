@@ -1,0 +1,2 @@
+subject_model,n,mean_ward,ward_ci_lo,ward_ci_hi,mean_ward_per_100,ward_per_100_ci_lo,ward_per_100_ci_hi
+openai/gpt-4o-mini,3,1.3333333333333333,0.0,3.0,0.3333333333333333,0.0,0.75

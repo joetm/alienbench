@@ -1,0 +1,494 @@
+"""End-to-end pipeline test using mocked API responses."""
+
+from __future__ import annotations
+
+import json
+import sys
+import types
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+# ---------------------------------------------------------------------------
+# Mock the krippendorff module before any alienbench import
+# ---------------------------------------------------------------------------
+
+_mock_krippendorff = types.ModuleType("krippendorff")
+_mock_krippendorff.alpha = lambda reliability_data, level_of_measurement: 0.85
+sys.modules.setdefault("krippendorff", _mock_krippendorff)
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+FAKE_CREATURE = (
+    "The Velhari is a radially symmetric organism that drifts through subsurface "
+    "ammonia lakes. It has no distinct head; instead, chemoreceptive cilia distributed "
+    "across its surface detect dissolved minerals. It absorbs energy directly from "
+    "geothermal vents via crystalline filaments embedded in its membrane. Reproduction "
+    "occurs by fragmentation — pieces detach and develop independently. The colony "
+    "communicates via modulated pressure waves through the liquid."
+)
+
+
+def _make_extraction_response() -> str:
+    """Return a valid JSON extraction response for FAKE_CREATURE."""
+    features = {
+        "symmetry":         {"feature_described": "radial symmetry", "is_departure": True,  "reasoning": "Radial, not bilateral."},
+        "sensory_organs":   {"feature_described": "distributed chemoreceptive cilia", "is_departure": True,  "reasoning": "No head-based sensory organs."},
+        "locomotion":       {"feature_described": "passive drifting", "is_departure": True,  "reasoning": "No limbs; drifts passively."},
+        "body_plan":        {"feature_described": "no distinct head or torso", "is_departure": True,  "reasoning": "Lacks canonical head/torso/limb structure."},
+        "skin_covering":    {"feature_described": "crystalline membrane filaments", "is_departure": True,  "reasoning": "Crystalline, not biological tissue."},
+        "reproduction":     {"feature_described": "fragmentation", "is_departure": True,  "reasoning": "Asexual fragmentation, not binary-sex reproduction."},
+        "metabolism":       {"feature_described": "geothermal energy absorption", "is_departure": True,  "reasoning": "Chemosynthetic, not heterotrophic."},
+        "communication":    {"feature_described": "modulated pressure waves", "is_departure": False, "reasoning": "Pressure waves are a physical signal, analogous to sound."},
+        "habitat":          {"feature_described": "subsurface ammonia lakes", "is_departure": True,  "reasoning": "Subsurface, not surface land or water."},
+        "cognition":        {"feature_described": "not described", "is_departure": False, "reasoning": "No cognitive architecture mentioned; defaulting to Earth-typical."},
+    }
+    return json.dumps(features)
+
+
+@pytest.fixture()
+def tmp_config(tmp_path: Path):
+    """Write a minimal config.yaml into a temp directory and return its path."""
+    config_text = f"""
+models:
+  - openai/gpt-4o-mini
+judge_models:
+  - openai/gpt-4o-mini
+samples_per_condition: 3
+temperature: 1.0
+max_tokens: 400
+prompt_variants:
+  - id: baseline
+    label: Baseline
+    text: "Imagine a creature that lives on an alien planet. Describe it in detail."
+data_dir: {tmp_path}/data
+results_dir: {tmp_path}/results
+api_key_env: OPENROUTER_API_KEY
+openrouter_base_url: https://openrouter.ai/api/v1
+"""
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text(config_text)
+    return str(cfg_path)
+
+
+# ---------------------------------------------------------------------------
+# Mock factory
+# ---------------------------------------------------------------------------
+
+def make_mock_client(generation_response: str, extraction_response: str):
+    """Return a mock OpenRouterClient whose .complete() returns different values per stage."""
+    from alienbench.client import Response
+
+    call_counter = {"n": 0}
+
+    def fake_complete(model, prompt, temperature, max_tokens, system=None, seed=None):
+        call_counter["n"] += 1
+        if temperature == 0.0:
+            return Response(extraction_response, model, 100, 200, generation_id="mock-call-id")
+        return Response(generation_response, model, 50, 100, generation_id="mock-call-id")
+
+    mock = MagicMock()
+    mock.complete.side_effect = fake_complete
+    return mock
+
+
+def make_mock_judge(extraction_response: str):
+    """Return a factory matching `make_judge(alias, cfg)` that yields a mock judge."""
+    from alienbench.client import Response
+
+    def fake_complete(prompt, temperature, max_tokens, system=None):
+        return Response(extraction_response, "mock-resolved-model", 100, 200,
+                        generation_id="mock-judge-call-id")
+
+    def factory(alias, cfg):
+        m = MagicMock()
+        m.complete.side_effect = fake_complete
+        return m
+
+    return factory
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+class TestGenerateStage:
+    def test_creates_jsonl_with_correct_records(self, tmp_config, tmp_path, monkeypatch):
+        from alienbench import generate
+
+        mock_client = make_mock_client(FAKE_CREATURE, "")
+        monkeypatch.setattr(generate, "OpenRouterClient", lambda cfg: mock_client)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+
+        generate.run(tmp_config)
+
+        out = Path(tmp_path) / "data" / "generations" / "openai__gpt-4o-mini" / "baseline" / "responses.jsonl"
+        assert out.exists(), "responses.jsonl not created"
+        records = [json.loads(line) for line in out.read_text().splitlines() if line.strip()]
+        assert len(records) == 3
+        for rec in records:
+            assert rec["response"] == FAKE_CREATURE
+            assert rec["model"] == "openai/gpt-4o-mini"
+            assert rec["prompt_variant"] == "baseline"
+            assert "id" in rec
+            assert "prompt_tokens" in rec
+            assert "completion_tokens" in rec
+            assert "duration_seconds" in rec
+            assert isinstance(rec["duration_seconds"], (int, float))
+            assert rec["duration_seconds"] >= 0
+
+    def test_checkpointing_skips_completed(self, tmp_config, tmp_path, monkeypatch):
+        from alienbench import generate
+
+        mock_client = make_mock_client(FAKE_CREATURE, "")
+        monkeypatch.setattr(generate, "OpenRouterClient", lambda cfg: mock_client)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+
+        generate.run(tmp_config)
+        call_count_first = mock_client.complete.call_count
+
+        generate.run(tmp_config)
+        # No new calls on second run
+        assert mock_client.complete.call_count == call_count_first
+
+
+class TestExtractStage:
+    def _run_generate(self, tmp_config, tmp_path, monkeypatch):
+        from alienbench import generate
+        mock_client = make_mock_client(FAKE_CREATURE, "")
+        monkeypatch.setattr(generate, "OpenRouterClient", lambda cfg: mock_client)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+        generate.run(tmp_config)
+
+    def test_creates_features_jsonl(self, tmp_config, tmp_path, monkeypatch):
+        from alienbench import extract, generate
+
+        self._run_generate(tmp_config, tmp_path, monkeypatch)
+
+        monkeypatch.setattr(extract, "make_judge", make_mock_judge(_make_extraction_response()))
+        extract.run(tmp_config)
+
+        out = (
+            Path(tmp_path) / "data" / "extractions"
+            / "openai__gpt-4o-mini" / "openai__gpt-4o-mini" / "baseline" / "features.jsonl"
+        )
+        assert out.exists()
+        records = [json.loads(line) for line in out.read_text().splitlines() if line.strip()]
+        assert len(records) == 3
+        for rec in records:
+            assert not rec["parse_error"]
+            assert "symmetry" in rec["features"]
+            assert isinstance(rec["features"]["symmetry"]["is_departure"], bool)
+            assert rec["judge_model_resolved"] == "mock-resolved-model"
+            assert rec["judge_call_id"] == "mock-judge-call-id"
+            assert "prompt_tokens" in rec
+            assert "completion_tokens" in rec
+            assert "n_parse_attempts" in rec and rec["n_parse_attempts"] == 1
+            assert "duration_seconds" in rec
+            assert rec["duration_seconds"] >= 0
+
+    def test_parse_failure_stored_gracefully(self, tmp_config, tmp_path, monkeypatch):
+        from alienbench import extract, generate
+
+        self._run_generate(tmp_config, tmp_path, monkeypatch)
+
+        monkeypatch.setattr(extract, "make_judge", make_mock_judge("not valid json {{{{"))
+        extract.run(tmp_config)  # Should not raise
+
+        out = (
+            Path(tmp_path) / "data" / "extractions"
+            / "openai__gpt-4o-mini" / "openai__gpt-4o-mini" / "baseline" / "features.jsonl"
+        )
+        records = [json.loads(line) for line in out.read_text().splitlines() if line.strip()]
+        assert all(rec["parse_error"] for rec in records)
+        assert all(rec["features"] is None for rec in records)
+
+
+class TestParseFeaturesSchema:
+    """Direct unit tests for ``parse_features`` schema validation (H1/H2)."""
+
+    def test_accepts_valid_response(self):
+        from alienbench.extract import parse_features
+
+        out = parse_features(_make_extraction_response())
+        assert out is not None
+        assert "symmetry" in out
+        assert out["symmetry"]["is_departure"] is True
+
+    def test_accepts_integer_zero_one(self):
+        from alienbench.extract import parse_features
+        from alienbench.dimensions import DIMENSION_IDS
+
+        # Build a payload where every is_departure is the integer 0 or 1
+        features = {d: {"is_departure": (1 if i % 2 == 0 else 0)}
+                    for i, d in enumerate(DIMENSION_IDS)}
+        out = parse_features(json.dumps(features))
+        assert out is not None
+
+    def test_rejects_string_is_departure(self):
+        """A judge returning ``"is_departure": "false"`` must be a parse failure.
+
+        Python's ``bool("false")`` is True, so accepting strings would silently
+        score every "false" as a departure.
+        """
+        from alienbench.extract import parse_features
+        from alienbench.dimensions import DIMENSION_IDS
+
+        features = {d: {"is_departure": "false"} for d in DIMENSION_IDS}
+        assert parse_features(json.dumps(features)) is None
+
+    def test_rejects_null_is_departure(self):
+        from alienbench.extract import parse_features
+        from alienbench.dimensions import DIMENSION_IDS
+
+        features = {d: {"is_departure": None} for d in DIMENSION_IDS}
+        assert parse_features(json.dumps(features)) is None
+
+    def test_rejects_missing_is_departure_field(self):
+        from alienbench.extract import parse_features
+        from alienbench.dimensions import DIMENSION_IDS
+
+        features = {d: {"feature_described": "x"} for d in DIMENSION_IDS}
+        assert parse_features(json.dumps(features)) is None
+
+    def test_rejects_non_dict_dimension(self):
+        from alienbench.extract import parse_features
+        from alienbench.dimensions import DIMENSION_IDS
+
+        features = {d: True for d in DIMENSION_IDS}  # primitive instead of dict
+        assert parse_features(json.dumps(features)) is None
+
+    def test_rejects_top_level_array(self):
+        from alienbench.extract import parse_features
+
+        assert parse_features("[1, 2, 3]") is None
+
+    def test_rejects_missing_dimension(self):
+        from alienbench.extract import parse_features
+        from alienbench.dimensions import DIMENSION_IDS
+
+        features = {d: {"is_departure": True} for d in DIMENSION_IDS[:-1]}
+        assert parse_features(json.dumps(features)) is None
+
+
+class TestScoreStage:
+    def _run_generate_and_extract(self, tmp_config, tmp_path, monkeypatch):
+        from alienbench import generate, extract
+        gen_client = make_mock_client(FAKE_CREATURE, "")
+        monkeypatch.setattr(generate, "OpenRouterClient", lambda cfg: gen_client)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+        generate.run(tmp_config)
+
+        monkeypatch.setattr(extract, "make_judge", make_mock_judge(_make_extraction_response()))
+        extract.run(tmp_config)
+
+    def test_ward_scores_computed_correctly(self, tmp_config, tmp_path, monkeypatch):
+        from alienbench import score
+
+        self._run_generate_and_extract(tmp_config, tmp_path, monkeypatch)
+
+        score.run(tmp_config)
+
+        ward_path = (
+            Path(tmp_path) / "data" / "scores"
+            / "openai__gpt-4o-mini" / "openai__gpt-4o-mini" / "baseline" / "ward_scores.jsonl"
+        )
+        assert ward_path.exists()
+        records = [json.loads(line) for line in ward_path.read_text().splitlines() if line.strip()]
+        assert len(records) == 3
+        # 8 departures in our fake extraction (symmetry, sensory, locomotion, body_plan,
+        # skin_covering, reproduction, metabolism, habitat = 8; communication=0, cognition=0)
+        for rec in records:
+            assert rec["ward_score"] == 8
+            assert rec["per_dimension"]["symmetry"] == 1
+            assert rec["per_dimension"]["communication"] == 0
+
+    def test_score_skips_malformed_extraction(self, tmp_config, tmp_path, monkeypatch):
+        """Defence-in-depth: a malformed extraction record must not crash score.run.
+
+        Simulates the case where parse_features somehow accepted a record whose
+        inner structure is broken (legacy data, manual edit, schema drift). The
+        score stage should log and skip, not raise.
+        """
+        from alienbench import extract, generate, score
+        from alienbench.paths import extractions_path
+
+        self._run_generate_and_extract(tmp_config, tmp_path, monkeypatch)
+
+        # Hand-craft a malformed extraction record (parse_error=False but
+        # features missing is_departure on one dimension). Append it to the
+        # existing features.jsonl so the score stage will encounter it.
+        data_dir = Path(tmp_path) / "data"
+        ext_path = extractions_path(
+            data_dir, "openai/gpt-4o-mini", "openai/gpt-4o-mini", "baseline"
+        )
+        bad_record = {
+            "generation_id": "broken-gen-id",
+            "judge_model": "openai/gpt-4o-mini",
+            "judge_model_resolved": "openai/gpt-4o-mini",
+            "judge_call_id": "mock",
+            "subject_model": "openai/gpt-4o-mini",
+            "prompt_variant": "baseline",
+            "timestamp": 0.0,
+            "features": {"symmetry": None},  # break the inner schema
+            "parse_error": False,
+            "raw_response": None,
+        }
+        with ext_path.open("a") as f:
+            f.write(json.dumps(bad_record) + "\n")
+
+        # score.run must not raise — it should log+skip the bad record.
+        score.run(tmp_config)
+
+        ward_path = (
+            data_dir / "scores" / "openai__gpt-4o-mini"
+            / "openai__gpt-4o-mini" / "baseline" / "ward_scores.jsonl"
+        )
+        records = [
+            json.loads(line) for line in ward_path.read_text().splitlines() if line.strip()
+        ]
+        # Three valid scores from the fixture; the malformed extraction is dropped.
+        assert len(records) == 3
+        assert "broken-gen-id" not in {r["generation_id"] for r in records}
+
+
+class TestAnalyzeStage:
+    def _run_full_pipeline(self, tmp_config, tmp_path, monkeypatch):
+        from alienbench import generate, extract, score
+
+        gen_client = make_mock_client(FAKE_CREATURE, "")
+        monkeypatch.setattr(generate, "OpenRouterClient", lambda cfg: gen_client)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+        generate.run(tmp_config)
+
+        monkeypatch.setattr(extract, "make_judge", make_mock_judge(_make_extraction_response()))
+        extract.run(tmp_config)
+
+        score.run(tmp_config)
+
+    def test_results_files_created(self, tmp_config, tmp_path, monkeypatch):
+        from alienbench import analyze
+
+        self._run_full_pipeline(tmp_config, tmp_path, monkeypatch)
+        analyze.run(tmp_config)
+
+        results = Path(tmp_path) / "results"
+        assert (results / "fig1_ward_heatmap.pdf").exists()
+        assert (results / "fig2_violin_scores.pdf").exists()
+        assert (results / "fig5_ward_radar.pdf").exists()
+        assert (results / "fig5b_ward_radar_overlay.pdf").exists()
+        assert (results / "summary.txt").exists()
+        # Reliability figures require >= 2 judges; test config has 1, so these are correctly absent
+        assert not (results / "fig3_reliability_table.pdf").exists()
+        assert not (results / "table_reliability.csv").exists()
+
+    def test_summary_contains_model_name(self, tmp_config, tmp_path, monkeypatch):
+        from alienbench import analyze
+
+        self._run_full_pipeline(tmp_config, tmp_path, monkeypatch)
+        analyze.run(tmp_config)
+
+        summary = (Path(tmp_path) / "results" / "summary.txt").read_text()
+        assert "openai/gpt-4o-mini" in summary
+        assert "Ward Departure Score" in summary
+
+    def test_length_adjusted_metric(self, tmp_config, tmp_path, monkeypatch):
+        """Ward-per-100-tokens is computed, persisted, and summarised."""
+        import csv
+
+        from alienbench import analyze
+
+        self._run_full_pipeline(tmp_config, tmp_path, monkeypatch)
+        analyze.run(tmp_config)
+
+        results = Path(tmp_path) / "results"
+        la_path = results / "table_length_adjusted.csv"
+        assert la_path.exists(), "table_length_adjusted.csv not created"
+
+        with la_path.open() as fh:
+            rows = list(csv.DictReader(fh))
+        assert len(rows) == 3, "expected 3 per-generation rows"
+        for row in rows:
+            ward = float(row["ward_score"])
+            tokens = float(row["completion_tokens"])
+            expected = ward / tokens * 100.0
+            assert abs(float(row["ward_per_100"]) - expected) < 1e-9
+            assert tokens > 0
+
+        # Per-model table has one row carrying both metrics
+        per_model_path = results / "table_length_adjusted_per_model.csv"
+        assert per_model_path.exists()
+        with per_model_path.open() as fh:
+            per_model_rows = list(csv.DictReader(fh))
+        assert len(per_model_rows) == 1
+        assert per_model_rows[0]["subject_model"] == "openai/gpt-4o-mini"
+
+        summary = (results / "summary.txt").read_text()
+        assert "Length-Adjusted Ward Score" in summary
+
+
+class TestRadar:
+    def test_per_model_departure_rates_axes_and_values(self):
+        """_per_model_departure_rates returns dimensions in DIMENSION_IDS order
+        with judge-then-generation averaging."""
+        import pandas as pd
+
+        from alienbench.dimensions import DIMENSION_IDS
+        from alienbench.radar import _per_model_departure_rates
+
+        def _row(model, gen_id, judge, **dims):
+            base = {f"dim_{d}": 0 for d in DIMENSION_IDS}
+            base.update({f"dim_{k}": v for k, v in dims.items()})
+            base.update({
+                "generation_id": gen_id,
+                "judge_model": judge,
+                "subject_model": model,
+                "prompt_variant": "baseline",
+                "ward_score": sum(base[f"dim_{d}"] for d in DIMENSION_IDS),
+            })
+            return base
+
+        df = pd.DataFrame([
+            _row("m/a", "g1", "j1", symmetry=1, locomotion=1),
+            _row("m/a", "g1", "j2", symmetry=0, locomotion=1),  # symmetry averages 0.5
+            _row("m/a", "g2", "j1", symmetry=1, locomotion=0),
+            _row("m/a", "g2", "j2", symmetry=1, locomotion=0),  # gen2 symmetry = 1.0
+            _row("m/b", "g3", "j1", habitat=1),
+            _row("m/b", "g3", "j2", habitat=1),
+        ])
+
+        rates = _per_model_departure_rates(df)
+
+        assert list(rates.columns) == DIMENSION_IDS
+        # m/a: symmetry = mean(0.5, 1.0) = 0.75; locomotion = mean(1.0, 0.0) = 0.5
+        assert rates.loc["m/a", "symmetry"] == pytest.approx(0.75)
+        assert rates.loc["m/a", "locomotion"] == pytest.approx(0.5)
+        # m/b: only habitat departs; others 0
+        assert rates.loc["m/b", "habitat"] == pytest.approx(1.0)
+        assert rates.loc["m/b", "symmetry"] == pytest.approx(0.0)
+
+    def test_radar_figure_written(self, tmp_path):
+        """fig_ward_radar_small_multiples writes a PDF even with a single model."""
+        import pandas as pd
+
+        from alienbench.dimensions import DIMENSION_IDS
+        from alienbench.radar import fig_ward_radar_small_multiples
+
+        row = {f"dim_{d}": 0 for d in DIMENSION_IDS}
+        row.update({
+            "dim_symmetry": 1,
+            "generation_id": "g1",
+            "judge_model": "j1",
+            "subject_model": "m/a",
+            "prompt_variant": "baseline",
+            "ward_score": 1,
+        })
+        df = pd.DataFrame([row])
+
+        fig_ward_radar_small_multiples(df, tmp_path)
+
+        assert (tmp_path / "fig5_ward_radar.pdf").exists()
+        assert (tmp_path / "fig5_ward_radar.png").exists()

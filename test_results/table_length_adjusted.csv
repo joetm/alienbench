@@ -1,0 +1,4 @@
+generation_id,subject_model,prompt_variant,ward_score,completion_tokens,ward_per_100
+8299c238-fe40-488c-8991-d5be98f110ee,openai/gpt-4o-mini,baseline,3.0,400,0.75
+a54a715e-1238-4a0d-bab7-7cd119ac1fc0,openai/gpt-4o-mini,baseline,1.0,400,0.25
+e445c9de-7f14-4194-9b8f-7f3958368460,openai/gpt-4o-mini,baseline,0.0,400,0.0

@@ -1,0 +1,73 @@
+# AlienBench Results Summary
+
+## Ward Departure Score by Model (bootstrap 95% CI)
+
+  google/gemini-2.0-flash-001: 5.14 [3.97, 6.33] (n=18)
+  openai/gpt-4o: 3.75 [2.61, 5.00] (n=18)
+
+## Inter-Rater Reliability (Ward Total, stratified)
+
+  α all-pairs     = 0.798  (n=72)
+  α cross-model   = nan  (n=36)
+  α same-model    = nan  (n=36)
+  Δ̄ self−cross    = 0.222 score points
+  Self-judge exclusion rule triggered: no — self-judge pairs may remain in the primary analysis.
+
+## Prompt Variant Effects (Kruskal-Wallis + Post-Hoc)
+
+  Kruskal-Wallis: H=20.59, p=0.0010
+
+  Pairwise Mann-Whitney U (Bonferroni-corrected, rank-biserial 95% CI):
+
+    baseline vs constrained_ammonia: U=20, p=1.0000, r=-0.111 [-0.778, 0.611]
+    baseline vs constrained_high_gravity: U=32, p=0.5506, r=-0.750 [-1.000, -0.278]
+    baseline vs constrained_no_light: U=21, p=1.0000, r=-0.167 [-0.861, 0.583]
+    baseline vs departure_primed: U=0, p=0.0738, r=1.000 [1.000, 1.000]
+    baseline vs detailed_description: U=24, p=1.0000, r=-0.306 [-0.889, 0.361]
+    constrained_ammonia vs constrained_high_gravity: U=32, p=0.4465, r=-0.778 [-1.000, -0.333]
+    constrained_ammonia vs constrained_no_light: U=23, p=1.0000, r=-0.278 [-0.861, 0.389]
+    constrained_ammonia vs departure_primed: U=0, p=0.0716, r=1.000 [1.000, 1.000]
+    constrained_ammonia vs detailed_description: U=24, p=1.0000, r=-0.306 [-1.000, 0.389]
+    constrained_high_gravity vs constrained_no_light: U=4, p=0.4465, r=0.778 [0.167, 1.000]
+    constrained_high_gravity vs departure_primed: U=0, p=0.0727, r=1.000 [1.000, 1.000]
+    constrained_high_gravity vs detailed_description: U=8, p=1.0000, r=0.556 [-0.056, 1.000]
+    constrained_no_light vs departure_primed: U=0, p=0.0716, r=1.000 [1.000, 1.000]
+    constrained_no_light vs detailed_description: U=24, p=1.0000, r=-0.306 [-1.000, 0.417]
+    departure_primed vs detailed_description: U=36, p=0.0738, r=-1.000 [-1.000, -1.000]
+
+  Retrospective power (Mann-Whitney U, Bonferroni α'=0.0033):
+    Minimum detectable |r| at 80% power: not reached in grid
+    observed |r|=0.111 -> simulated power=0.00
+    observed |r|=0.750 -> simulated power=0.09
+    observed |r|=0.167 -> simulated power=0.00
+    observed |r|=1.000 -> simulated power=0.21
+    observed |r|=0.306 -> simulated power=0.01
+    observed |r|=0.778 -> simulated power=0.10
+    observed |r|=0.278 -> simulated power=0.01
+    observed |r|=0.778 -> simulated power=0.08
+    observed |r|=0.556 -> simulated power=0.05
+
+## Token Count vs. Ward Score (Instruction-Following Covariate)
+
+  Overall: ρ=0.056 [-0.269, 0.385], p=0.7459 (n=36)
+  baseline: ρ=0.698 [-0.127, 1.000], p=0.1228 (n=6)  [TOKEN-CONFOUNDED]
+  constrained_ammonia: ρ=0.806 [0.000, 1.000], p=0.0528 (n=6)  [TOKEN-CONFOUNDED]
+  constrained_high_gravity: ρ=0.223 [-0.866, 0.894], p=0.6711 (n=6)
+  constrained_no_light: ρ=-0.625 [-1.000, 0.447], p=0.1843 (n=6)
+  departure_primed: ρ=0.508 [-1.000, 1.000], p=0.3041 (n=6)
+  detailed_description: ρ=0.213 [-1.000, 1.000], p=0.6860 (n=6)
+  Cross-condition median ρ = 0.365; flag threshold (median + 0.15) = 0.515
+  Flagged conditions should be excluded from primary model-comparison analyses: baseline, constrained_ammonia
+
+## Per-Dimension Departure Rates (Training-Data Trope Analysis)
+
+  sensory_organs: 0.750
+  communication: 0.681
+  skin_covering: 0.569
+  body_plan: 0.458
+  locomotion: 0.444
+  reproduction: 0.389
+  metabolism: 0.375
+  habitat: 0.361
+  cognition: 0.222
+  symmetry: 0.194

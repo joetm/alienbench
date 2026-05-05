@@ -1,0 +1,114 @@
+[
+  {
+    "stage": "analyze",
+    "timestamp_utc": "2026-05-04T09:47:36Z",
+    "config_hash": "a5ed28d767d6b7aff800a265f6afc89fe176de942733b97686fc69dd6a81926d",
+    "config": {
+      "models": [
+        "openai/gpt-4o-mini"
+      ],
+      "judge_models": [
+        "openai/gpt-4o-mini"
+      ],
+      "prompt_variants": [
+        {
+          "id": "baseline",
+          "label": "Baseline",
+          "text": "Imagine a creature that lives on an alien planet. Describe it in detail."
+        }
+      ],
+      "prompt_paraphrases": [
+        {
+          "id": "baseline",
+          "label": "Baseline",
+          "text": "Imagine a creature that lives on an alien planet. Describe it in detail."
+        },
+        {
+          "id": "baseline_para_a",
+          "label": "Paraphrase A",
+          "text": "Picture an organism native to a planet other than Earth. Write a detailed description of it."
+        }
+      ],
+      "samples_per_condition": 3,
+      "temperature": 1.0,
+      "max_tokens": 400,
+      "data_dir": "/home/joppenla/RESEARCH/Papers/1-InProgress/AlienBench/alienbench/test_data",
+      "results_dir": "/home/joppenla/RESEARCH/Papers/1-InProgress/AlienBench/alienbench/test_results",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "openrouter_base_url": "https://openrouter.ai/api/v1",
+      "allowed_providers": null,
+      "allow_provider_fallbacks": false,
+      "judge_overrides": {},
+      "primary_metric": "ward"
+    },
+    "python_version": "3.12.3",
+    "platform": "Linux-6.8.0-110-generic-x86_64-with-glibc2.39",
+    "packages": {
+      "openai": "2.29.0",
+      "pydantic": "2.12.5",
+      "pyyaml": "6.0.3",
+      "pandas": "2.3.1",
+      "scipy": "1.16.0",
+      "matplotlib": "3.10.3",
+      "seaborn": "0.13.2",
+      "krippendorff": "0.8.2",
+      "tqdm": "4.67.3"
+    }
+  },
+  {
+    "stage": "latex",
+    "timestamp_utc": "2026-05-04T09:47:36Z",
+    "config_hash": "a5ed28d767d6b7aff800a265f6afc89fe176de942733b97686fc69dd6a81926d",
+    "config": {
+      "models": [
+        "openai/gpt-4o-mini"
+      ],
+      "judge_models": [
+        "openai/gpt-4o-mini"
+      ],
+      "prompt_variants": [
+        {
+          "id": "baseline",
+          "label": "Baseline",
+          "text": "Imagine a creature that lives on an alien planet. Describe it in detail."
+        }
+      ],
+      "prompt_paraphrases": [
+        {
+          "id": "baseline",
+          "label": "Baseline",
+          "text": "Imagine a creature that lives on an alien planet. Describe it in detail."
+        },
+        {
+          "id": "baseline_para_a",
+          "label": "Paraphrase A",
+          "text": "Picture an organism native to a planet other than Earth. Write a detailed description of it."
+        }
+      ],
+      "samples_per_condition": 3,
+      "temperature": 1.0,
+      "max_tokens": 400,
+      "data_dir": "/home/joppenla/RESEARCH/Papers/1-InProgress/AlienBench/alienbench/test_data",
+      "results_dir": "/home/joppenla/RESEARCH/Papers/1-InProgress/AlienBench/alienbench/test_results",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "openrouter_base_url": "https://openrouter.ai/api/v1",
+      "allowed_providers": null,
+      "allow_provider_fallbacks": false,
+      "judge_overrides": {},
+      "primary_metric": "ward"
+    },
+    "python_version": "3.12.3",
+    "platform": "Linux-6.8.0-110-generic-x86_64-with-glibc2.39",
+    "packages": {
+      "openai": "2.29.0",
+      "pydantic": "2.12.5",
+      "pyyaml": "6.0.3",
+      "pandas": "2.3.1",
+      "scipy": "1.16.0",
+      "matplotlib": "3.10.3",
+      "seaborn": "0.13.2",
+      "krippendorff": "0.8.2",
+      "tqdm": "4.67.3"
+    }
+  }
+]

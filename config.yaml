@@ -1,0 +1,149 @@
+# AlienBench Configuration
+
+# Subject models under evaluation (OpenRouter model IDs).
+# The canonical baseline set below is tiered on frontier capability rather
+# than on openness: Tier A collects the four flagship "frontier camps"
+# (Anthropic, OpenAI, Google, DeepSeek), Tier B adds the remaining major
+# frontier open-weight providers (Meta, Alibaba, Mistral), and Tier C gives
+# a ~8B small-model baseline from the same three Tier-B providers so the
+# benchmark exposes a within-provider scaling axis.
+models:
+  # Tier A: Frontier flagships (full models; no mini / lite tiers)
+  - anthropic/claude-opus-4.7
+  - openai/gpt-5.4
+  - google/gemini-3.1-pro-preview
+  - deepseek/deepseek-v3
+  # Tier B: Other frontier open-weight
+  - meta-llama/llama-4-maverick
+  - qwen/qwen-3-72b-instruct
+  - mistralai/mistral-large-2411
+  # Tier C: Smaller open-weight (~8B)
+  - meta-llama/llama-3.1-8b-instruct
+  - qwen/qwen-3-8b-instruct
+  - mistralai/ministral-8b-instruct
+
+# Judge panel for Ward feature extraction. The panel composition is a design variable and is
+# expected to be updated as stronger or more diverse judges become
+# available.
+# Aliases used as panel keys in paths and dataframes. Each alias is
+# routed to a native provider SDK with a pinned dated `model_id` via
+# `judge_overrides` below; the resolved upstream model is recorded
+# per-call as `judge_model_resolved` on every extraction row.
+# 
+# These are keys for the overrides below.
+# OpenRouter does not support pinned version.
+# But for future extensibility, this mapping is supported.
+judge_models:
+  - anthropic/claude-opus-4.6 # Feb 4, 2026
+  - google/gemini-3.1-pro-preview # Dec 17, 2025
+  - openai/gpt-5.4 # Mar 5, 2026
+
+judge_overrides:
+  anthropic/claude-opus-4.6:
+    provider: anthropic
+    # Claude Opus 4.6 is Anthropic's previous-generation Opus. It has a
+    # dated snapshot (claude-opus-4-5-20251101 is 4.5; the 4.6 tier is
+    # currently exposed only under its unversioned alias). Pricing is
+    # identical to Opus 4.7 ($5/$25 per Mtok); 4.6 accepts `temperature`,
+    # which is deprecated on 4.7, so it is preferable for a deterministic
+    # judge. The resolved version is recorded per-call as
+    # judge_model_resolved on every extraction row.
+    model_id: claude-opus-4-6
+  google/gemini-3.1-pro-preview:
+    provider: google
+    # The resolved version is recorded per-call as judge_model_resolved on
+    # every extraction row.
+    model_id: gemini-3.1-pro-preview
+  openai/gpt-5.4:
+    provider: openai
+    # Pinned to the dated March 2026 snapshot so the judge is reproducible
+    # at submission time and does not drift with OpenRouter's floating
+    # `openai/gpt-5.4` alias (which is in the subject pool).
+    model_id: gpt-5.4
+
+# Primary metric for AlienBench. The Ward Departure Score is the only
+# primary metric; a holistic creativity rubric was considered during pilot
+# development and excluded because two sub-dimensions had near-zero
+# Krippendorff's alpha (Elaboration α = −0.044; Internal Consistency
+# α = −0.014). If a secondary creativity metric is ever re-introduced, it
+# should be reported separately as an appendix result and not mixed with
+# the Ward primary metric.
+primary_metric: ward
+
+# Number of samples per model per prompt variant
+samples_per_condition: 3 # 50
+
+# Generation parameters
+temperature: 1.0
+max_tokens: 800
+
+# Prompt variants
+prompt_variants:
+  - id: baseline
+    label: "Baseline"
+    text: "Imagine a creature that lives on an alien planet. Describe it in detail."
+
+  - id: departure_primed
+    label: "Departure-primed"
+    text: "Imagine a creature on an alien planet that is as different from any Earth creature as possible. Describe it in detail."
+
+  - id: constrained_no_light
+    label: "Constrained: No Light"
+    text: "Imagine a creature that lives on a planet with no light at all. Describe it in detail."
+
+  - id: constrained_high_gravity
+    label: "Constrained: High Gravity"
+    text: "Imagine a creature that lives on a planet with 10x Earth's gravity. Describe it in detail."
+
+  - id: constrained_ammonia
+    label: "Constrained: Ammonia Oceans"
+    text: "Imagine a creature that lives on a planet with oceans of liquid ammonia instead of water. Describe it in detail."
+
+  - id: detailed_description
+    label: "Detailed description"
+    text: "Imagine a creature on an alien planet. Describe it in full detail, including any aspects of its biology that would help someone understand what kind of organism it is."
+
+# Surface rewordings of the baseline prompt used only by the Prompt
+# Paraphrase Sensitivity ablation (paper sec:ablation_prompt). We do not
+# assert semantic equivalence: the entries are authored rewordings that
+# re-use the baseline's framing (a creature, an alien or non-Earth
+# planet, a request for a detailed description) without introducing
+# vocabulary that goes beyond the baseline's priming (e.g. we avoid
+# "beyond our solar system", "extraterrestrial", or category-narrowing
+# nouns such as "animal"). The ablation treats each paraphrase as a
+# surface variant of the baseline, and the paper quantifies the
+# remaining surface-level divergence between them rather than claiming
+# intent preservation. The ``baseline`` entry repeats the canonical
+# wording so the ablation's rank-correlation matrix includes the
+# wording used in the primary analysis.
+prompt_paraphrases:
+  - id: baseline
+    label: "Baseline"
+    text: "Imagine a creature that lives on an alien planet. Describe it in detail."
+  - id: baseline_para_a
+    label: "Paraphrase A"
+    text: "Picture an organism that lives on a planet other than Earth. Write a detailed description of it."
+  - id: baseline_para_b
+    label: "Paraphrase B"
+    text: "Describe, in detail, a creature that lives on another planet."
+  - id: baseline_para_c
+    label: "Paraphrase C"
+    text: "Imagine a living being that evolved on a planet other than Earth. Describe it in detail."
+  - id: baseline_para_d
+    label: "Paraphrase D"
+    text: "Think of a creature that comes from an alien planet. Describe what it looks like and how it lives in detail."
+  - id: baseline_para_e
+    label: "Paraphrase E"
+    text: "Envision a creature found on an alien world. Provide a detailed description of it."
+
+# Data directory (relative to project root)
+data_dir: data
+
+# Results directory
+results_dir: results
+
+# OpenRouter API key env var name
+api_key_env: OPENROUTER_API_KEY
+
+# OpenRouter base URL
+openrouter_base_url: "https://openrouter.ai/api/v1"

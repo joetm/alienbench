@@ -1,0 +1,15 @@
+\begin{table}[htbp]
+  \centering
+  \caption{Ward Departure Scores (0--10) by model and prompt condition. Rows are subject models; columns are prompt conditions with a final Overall column averaged across all conditions. Per-condition cells report mean (SD) across generations after averaging judges per generation. The Overall column reports the per-model mean with a bootstrap percentile 95\% CI in brackets ($B=10{,}000$) over per-generation judge-averaged Ward scores. Bold marks the top model in each column. Column headers: Base = baseline, Dep-P = departure-primed, NoLight = constrained (no light), HighG = constrained (10$\times$ Earth gravity), NH$_3$ = constrained (ammonia oceans), Detail = detailed description.}
+  \small
+  \label{tab:ward_scores}
+  \resizebox{\textwidth}{!}{%
+  \begin{tabular}{lcc}
+    \toprule
+    Model & Base & Overall \\
+    \midrule
+    gpt-4o-mini & \textbf{1.33 (1.53)} & \textbf{1.33\,[0.00, 3.00]} \\
+    \bottomrule
+  \end{tabular}%
+  }
+\end{table}

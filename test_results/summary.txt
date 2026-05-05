@@ -1,0 +1,41 @@
+# AlienBench Results Summary
+
+## Ward Departure Score by Model (bootstrap 95% CI)
+
+  openai/gpt-4o-mini: 1.33 [0.00, 3.00] (n=3)
+
+## Prompt Variant Effects (Kruskal-Wallis + Post-Hoc)
+
+  Skipped (fewer than 2 prompt variants in data)
+
+## Extraction Reliability (per-judge success rates)
+
+  openai/gpt-4o-mini: 100.0% successful (3/3; 0 parse_error, 0 api_error)
+
+## Token Count vs. Ward Score (Instruction-Following Covariate)
+
+  Overall: ρ=nan [nan, nan], p=nan (n=3)
+  baseline: ρ=nan [nan, nan], p=nan (n=3)
+  Cross-condition median ρ = nan; flag threshold (median + 0.15) = nan
+
+## Length-Adjusted Ward Score (per 100 completion tokens)
+
+
+  Per-model mean (bootstrap 95% CI):
+    openai/gpt-4o-mini: ward_per_100=0.333 [0.000, 0.750] (n=3)
+
+  Prompt Variant Effects on ward_per_100 (Kruskal-Wallis + Post-Hoc):
+    Skipped (fewer than 2 prompt variants in data)
+
+## Per-Dimension Departure Rates (Training-Data Trope Analysis)
+
+  skin_covering: 0.667
+  locomotion: 0.333
+  communication: 0.333
+  symmetry: 0.000
+  sensory_organs: 0.000
+  body_plan: 0.000
+  reproduction: 0.000
+  metabolism: 0.000
+  habitat: 0.000
+  cognition: 0.000
