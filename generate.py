@@ -72,18 +72,29 @@ def run(config_path: str = "config.yaml") -> None:
 
     cells = [(model, variant) for model in cfg.models for variant in cfg.prompt_variants]
 
+    # Count remaining as |target_indices - completed_indices| per cell so
+    # that on-disk records with sample_index >= samples_per_condition
+    # (left over from a prior, larger run) cannot push the displayed
+    # remaining count negative.
+    target = set(range(cfg.samples_per_condition))
     n_total = cfg.samples_per_condition * len(cells)
-    n_existing = sum(
-        len(load_completed_sample_indices(generations_path(data_dir, m, v.id)))
+    n_remaining = sum(
+        len(target - load_completed_sample_indices(generations_path(data_dir, m, v.id)))
         for m, v in cells
     )
+    n_done = n_total - n_remaining
     logger.info(
         "Generation: %d/%d samples already complete; %d remaining across %d cells",
-        n_existing, n_total, n_total - n_existing, len(cells),
+        n_done, n_total, n_remaining, len(cells),
     )
 
     n_done_this_run = 0
     n_failed_this_run = 0
+    # A sample_index that errors this run is excluded from re-reservation
+    # so a persistent API error does not loop forever. Nothing is written
+    # to the JSONL on failure, so the next ``generate`` run retries it.
+    # Mirrors the same mechanism in ``extract.run``.
+    failed_this_run: dict[tuple[str, str], set[str]] = {}
 
     while True:
         progress = False
@@ -92,14 +103,16 @@ def run(config_path: str = "config.yaml") -> None:
             res_dir = reservations_dir(data_dir, model, variant.id)
             responses_path = generations_path(data_dir, model, variant.id)
             responses_path.parent.mkdir(parents=True, exist_ok=True)
+            cell_key = (model, variant.id)
 
             candidates = [str(i) for i in range(cfg.samples_per_condition)]
             key = try_reserve(
                 res_dir,
                 candidates=candidates,
-                completed_fn=lambda p=responses_path: {
-                    str(i) for i in load_completed_sample_indices(p)
-                },
+                completed_fn=lambda p=responses_path, k=cell_key: (
+                    {str(i) for i in load_completed_sample_indices(p)}
+                    | failed_this_run.get(k, set())
+                ),
                 rng=rng,
             )
             if key is None:
@@ -142,8 +155,10 @@ def run(config_path: str = "config.yaml") -> None:
                 )
             except Exception as e:
                 n_failed_this_run += 1
+                failed_this_run.setdefault(cell_key, set()).add(key)
                 logger.error(
-                    "Error for %s / %s sample_index=%d: %s",
+                    "Error for %s / %s sample_index=%d: %s. No record"
+                    " written; will retry on next run.",
                     model, variant.id, i, e,
                 )
             finally:

@@ -201,11 +201,19 @@ def run(
         logger.info("No generations available for extraction.")
         return
 
+    # Count remaining as |pending - done| per cell. A naive
+    # n_existing - n_total can go negative when the on-disk JSONL
+    # contains records for ids outside the current cap (e.g. the cap
+    # was lowered after extractions were written), which inflates
+    # n_existing without contributing to cap-eligible progress.
     n_total = sum(len(p) for _, _, _, _, p in cells)
-    n_existing = sum(len(load_extracted_ids(out)) for _, _, _, out, _ in cells)
+    n_remaining = sum(
+        len(set(p) - load_extracted_ids(out)) for _, _, _, out, p in cells
+    )
+    n_done = n_total - n_remaining
     logger.info(
         "Extraction: %d/%d already complete; %d remaining across %d cells",
-        n_existing, n_total, n_total - n_existing, len(cells),
+        n_done, n_total, n_remaining, len(cells),
     )
 
     n_success = 0
