@@ -30,6 +30,10 @@ def generations_path(data_dir: Path, model_id: str, prompt_id: str) -> Path:
     return data_dir / "generations" / model_dir_name(model_id) / prompt_id / "responses.jsonl"
 
 
+def reservations_dir(data_dir: Path, model_id: str, prompt_id: str) -> Path:
+    return data_dir / "generations" / model_dir_name(model_id) / prompt_id / "_reservations"
+
+
 def extractions_path(data_dir: Path, judge_model: str, model_id: str, prompt_id: str) -> Path:
     return (
         data_dir
@@ -38,6 +42,19 @@ def extractions_path(data_dir: Path, judge_model: str, model_id: str, prompt_id:
         / model_dir_name(model_id)
         / prompt_id
         / "features.jsonl"
+    )
+
+
+def extraction_reservations_dir(
+    data_dir: Path, judge_model: str, model_id: str, prompt_id: str
+) -> Path:
+    return (
+        data_dir
+        / "extractions"
+        / model_dir_name(judge_model)
+        / model_dir_name(model_id)
+        / prompt_id
+        / "_reservations"
     )
 
 
@@ -64,11 +81,17 @@ def iter_jsonl(path: Path) -> Iterator[dict]:
                     logger.warning("Malformed JSON in %s (line %d): %s", path, lineno, e)
 
 
-def count_existing(path: Path) -> int:
+def load_completed_sample_indices(path: Path) -> set[int]:
+    """Return set of ``sample_index`` values already present in a generations JSONL."""
     if not path.exists():
-        return 0
-    with open(path) as f:
-        return sum(1 for line in f if line.strip())
+        return set()
+    done: set[int] = set()
+    for rec in iter_jsonl(path):
+        try:
+            done.add(int(rec["sample_index"]))
+        except (KeyError, TypeError, ValueError):
+            pass
+    return done
 
 
 def load_extracted_ids(path: Path) -> set[str]:
@@ -96,11 +119,53 @@ def load_scored_ids(path: Path) -> set[str]:
     return ids
 
 
-def iter_generations(data_dir: Path, model_id: str, prompt_id: str) -> Iterator[dict]:
+def iter_generations(
+    data_dir: Path,
+    model_id: str,
+    prompt_id: str,
+    *,
+    cap: int | None = None,
+) -> Iterator[dict]:
+    """Yield generation records, optionally capped to the first ``cap`` by ``sample_index``.
+
+    When ``cap`` is None (default) the JSONL is streamed lazily in
+    write order. When ``cap`` is set, the records are materialised,
+    sorted ascending by ``sample_index``, and only those with
+    ``sample_index < cap`` are yielded. Sorting is required because
+    JSONL writes interleave across reservation workers, so write order
+    does not equal ``sample_index`` order.
+    """
     path = generations_path(data_dir, model_id, prompt_id)
     if not path.exists():
         return
-    yield from iter_jsonl(path)
+    if cap is None:
+        yield from iter_jsonl(path)
+        return
+    records = sorted(iter_jsonl(path), key=lambda r: r.get("sample_index", 0))
+    for rec in records:
+        if rec.get("sample_index", 0) < cap:
+            yield rec
+
+
+def allowed_generation_ids(
+    data_dir: Path,
+    model_id: str,
+    prompt_id: str,
+    cap: int | None,
+) -> set[str]:
+    """Return the set of ``generation_id`` values within the cap.
+
+    Used by score and analyze to filter records keyed by
+    ``generation_id`` (which carry no ``sample_index`` themselves).
+    When ``cap`` is None, returns every id present in the generations
+    JSONL; when set, returns only ids whose record has
+    ``sample_index < cap``.
+    """
+    return {
+        rec["id"]
+        for rec in iter_generations(data_dir, model_id, prompt_id, cap=cap)
+        if "id" in rec
+    }
 
 
 def iter_extractions(data_dir: Path, judge: str, model_id: str, prompt_id: str) -> Iterator[dict]:
@@ -197,6 +262,7 @@ def load_extraction_status(
     judge_models: list[str],
     models: list[str],
     prompt_variants,
+    cap: int | None = None,
 ) -> pd.DataFrame:
     """Return one row per (judge, generation) attempt with success/failure flags.
 
@@ -210,6 +276,11 @@ def load_extraction_status(
       (the judge's API call failed and was not retryable, so no record was
       written; see :func:`alienbench.extract.run`).
 
+    When ``cap`` is set, only the first ``cap`` generations per cell
+    (by ``sample_index``) are considered. Rows for ``sample_index >=
+    cap`` are excluded so the parse-failure rate denominator matches
+    the actual processed volume.
+
     The resulting DataFrame has columns: ``judge_model``, ``subject_model``,
     ``prompt_variant``, ``generation_id``, ``status``.
     """
@@ -219,7 +290,11 @@ def load_extraction_status(
             gen_path = generations_path(data_dir, model, variant.id)
             if not gen_path.exists():
                 continue
-            gen_ids = [rec["id"] for rec in iter_jsonl(gen_path) if "id" in rec]
+            gen_ids = [
+                rec["id"]
+                for rec in iter_generations(data_dir, model, variant.id, cap=cap)
+                if "id" in rec
+            ]
             for judge in judge_models:
                 ext_records = {
                     rec["generation_id"]: rec

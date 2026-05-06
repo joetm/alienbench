@@ -64,3 +64,17 @@ def test_complete_gives_up_after_max_retries(_no_sleep, _client):
 def test_malformed_response_is_retryable():
     exc = MalformedOpenRouterResponse("boom")
     assert client_module._openrouter_retryable(exc) is True
+
+
+def test_default_provider_block_allows_any_provider(monkeypatch):
+    cfg = SimpleNamespace(
+        api_key="k",
+        openrouter_base_url="https://example",
+        allowed_providers=None,
+        allow_provider_fallbacks=False,
+    )
+    monkeypatch.setattr(client_module, "OpenAI", lambda **_: MagicMock())
+    c = OpenRouterClient(cfg)
+    provider = c._extra_body["provider"]
+    assert provider["allow_fallbacks"] is True
+    assert provider["require_parameters"] is False

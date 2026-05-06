@@ -766,8 +766,18 @@ def run(config_path: str = "config.yaml") -> None:
     logger.info("Token records: %d", len(tokens_df))
 
     logger.info("Loading extraction status...")
+    # Pass the optional cost-cap (canonical doc in config.py) so the
+    # parse-failure denominator reflects the actual processed volume.
+    # Without this, the failure-rate column would compare the count of
+    # api_error/parse_error rows against the full samples_per_condition
+    # baseline (e.g. 50) rather than against the cap (e.g. 30) and
+    # would misreport reliability.
     status_df = load_extraction_status(
-        data_dir, cfg.judge_models, cfg.models, cfg.prompt_variants
+        data_dir,
+        cfg.judge_models,
+        cfg.models,
+        cfg.prompt_variants,
+        cap=cfg.samples_per_condition_cap,
     )
     logger.info("Extraction attempts: %d", len(status_df))
 

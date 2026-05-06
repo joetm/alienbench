@@ -65,15 +65,15 @@ models:
   - anthropic/claude-opus-4.7
   - openai/gpt-5.4
   - google/gemini-3.1-pro-preview
-  - deepseek/deepseek-v3
+  - deepseek/deepseek-v3.2
   # Tier B: Other frontier open-weight
   - meta-llama/llama-4-maverick
-  - qwen/qwen-3-72b-instruct
+  - qwen/qwen3-235b-a22b
   - mistralai/mistral-large-2411
   # Tier C: Smaller open-weight (~8B)
   - meta-llama/llama-3.1-8b-instruct
-  - qwen/qwen-3-8b-instruct
-  - mistralai/ministral-8b-instruct
+  - qwen/qwen3-8b
+  - mistralai/ministral-14b-2512
 ```
 
 Use any [OpenRouter model ID](https://openrouter.ai/models). These are the subject models whose structural novelty is being measured. The canonical baseline is tiered by frontier capability rather than by openness: Tier A collects the four frontier flagships from each top-tier provider (Anthropic, OpenAI, Google, DeepSeek), Tier B adds the remaining major frontier open-weight providers (Meta, Alibaba, Mistral), and Tier C gives a ~8B small-model baseline from the three Tier-B providers so the benchmark exposes a within-provider scaling axis.
@@ -109,6 +109,22 @@ samples_per_condition: 50
 ```
 
 Number of creature descriptions generated per model per prompt variant. 50 is recommended for distributional analysis; use 3–5 for a quick smoke test.
+
+#### Temporary cost cap
+
+```yaml
+samples_per_condition_cap: 30
+```
+
+Optional read-time filter that applies to every stage **after** generate (extract, score, analyze, human). When set, those stages consider only the first `samples_per_condition_cap` records per (subject_model, prompt_variant) cell, ordered ascending by `sample_index`. Generation files on disk are not rewritten; records for `sample_index >= cap` remain on disk and are silently skipped by downstream stages.
+
+Use this to reduce judge-call and human-annotation cost without re-running the (expensive) generate stage. Typical workflow:
+
+1. Run generate at the full `samples_per_condition: 50` to populate the on-disk dataset.
+2. Add `samples_per_condition_cap: 30` to operate on a subset for a draft pass through extract → score → analyze.
+3. Remove the cap line (or set it to `null`) before the final analysis so the full 50 samples per cell are scored. Already-scored records for sample_index < 30 are reused; only sample_index 30–49 are processed afresh.
+
+The Pydantic config validator rejects `cap > samples_per_condition`. The parse-failure denominator in the analyze stage uses the cap when set, so failure rates are not misreported. Canonical implementation reference: `Config.samples_per_condition_cap` in `alienbench/config.py`.
 
 ### Prompt variants
 
@@ -419,6 +435,44 @@ LLM outputs at a glance. The records carry the same schema as LLM extraction
 and scoring records, so the existing analysis utilities (`analyze`, `latex`)
 can consume them if `human/prolific-baseline` is added to `models` in
 `config.yaml` for a combined analysis run.
+
+### Per-dimension departure rates (Table 4 column)
+
+The main `latex` stage only generates Table 4 for LLM subject models. To compute
+the equivalent per-dimension departure rates for the human baseline, run the
+standalone script after Stages 2–3 have completed:
+
+```bash
+python3 alienbench/human_dimension_rates.py
+# or, from inside alienbench/:
+python3 human_dimension_rates.py --config config.yaml
+```
+
+The script applies the same averaging logic as `_make_ward_dimensions_table`:
+judges are averaged first within each generation, then averaged across
+generations. Sample output:
+
+```
+Human baseline: human/prolific-baseline
+Generations: 200  |  Judges: 3 of 3
+
+Dimension                       Rate
+----------------------------------------
+Body Symmetry                    7.2%
+Sensory Organs                  22.4%
+Locomotion                      18.8%
+Body Plan                       11.3%
+Skin / Body Covering             9.6%
+Reproduction                     4.1%
+Metabolism / Energy Source      13.7%
+Communication                    6.9%
+Habitat                          5.4%
+Cognitive Architecture           8.1%
+----------------------------------------
+Mean Ward score (0–10)           1.08
+```
+
+These values are the human-baseline column for Table 4 in the paper.
 
 ---
 

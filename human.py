@@ -43,6 +43,7 @@ from alienbench.config import load_config
 from alienbench.dimensions import DIMENSION_IDS, WARD_DIMENSIONS, compute_ward_score
 from alienbench.paths import (
     extractions_path,
+    iter_generations,
     iter_jsonl,
     load_ward_scores,
     ward_scores_path,
@@ -132,7 +133,18 @@ def sample(
                     "No generations for %s / %s; skipping stratum", model, variant.id
                 )
                 continue
-            records = [r for r in iter_jsonl(gen_path) if r.get("id") and r.get("response")]
+            # Honour the optional cost-cap from
+            # ``Config.samples_per_condition_cap`` (canonical doc in
+            # config.py). When set, the stratified human sample is
+            # drawn only from the first ``cap`` generations per cell so
+            # human-annotation cost stays in step with judge cost.
+            records = [
+                r
+                for r in iter_generations(
+                    data_dir, model, variant.id, cap=cfg.samples_per_condition_cap
+                )
+                if r.get("id") and r.get("response")
+            ]
             if not records:
                 continue
             k = min(samples_per_stratum, len(records))

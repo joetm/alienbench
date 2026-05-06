@@ -77,6 +77,28 @@ class OpenRouterClient:
                 "order": config.allowed_providers,
                 "allow_fallbacks": config.allow_provider_fallbacks,
             }
+        else:
+            # OpenRouter's default routing only tries major providers (OpenAI,
+            # Anthropic, Google, etc.) which do not host open-weight models.
+            # Explicitly listing all known providers ensures open-weight models
+            # (Maverick, Llama, Qwen, Mistral) route to deepinfra/novita/etc.
+            self._extra_body["provider"] = {
+                "order": [
+                    "openai", "anthropic", "google-vertex",
+                    "amazon-bedrock",
+                    "cohere",  "mistral",
+                    "deepinfra", "novita", "parasail", "sambanova",
+                    "nebius", "groq", "friendli", "cerebras",
+                    "together", "fireworks", "cloudflare",
+                ],
+                "allow_fallbacks": True,
+                # Do not restrict routing to providers that support every
+                # request parameter. Some upstreams ignore ``seed`` or
+                # other optional fields; with ``require_parameters: false``
+                # OpenRouter routes there anyway (the parameter is silently
+                # dropped) instead of returning a 400.
+                "require_parameters": False,
+            }
 
     def complete(
         self,

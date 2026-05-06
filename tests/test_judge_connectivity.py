@@ -39,14 +39,21 @@ def test_judge_reachable(alias: str) -> None:
 
     cfg = load_config(_LIVE_CONFIG)
     override = cfg.judge_overrides[alias]
-    env_var = override.api_key_env or _PROVIDER_KEY_ENV[override.provider]
+    if override.provider == "google" and override.use_vertex:
+        env_var = override.vertex_project_env
+    else:
+        env_var = override.api_key_env or _PROVIDER_KEY_ENV[override.provider]
     if not os.environ.get(env_var):
         pytest.skip(f"{env_var} not set")
 
     judge = make_judge(alias, cfg)
+    # Thinking-required models (e.g. gemini-3.1-pro-preview) count internal
+    # reasoning against ``max_tokens``, so a budget of 10 leaves nothing for
+    # the visible reply. Match the production extraction budget so the smoke
+    # test exercises the same ceiling as the real pipeline.
     response = judge.complete(
         prompt="Reply with the single word: hello",
         temperature=0.0,
-        max_tokens=10,
+        max_tokens=2500,
     )
     assert response.text.strip(), f"Judge {alias!r} returned an empty response"

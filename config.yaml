@@ -12,15 +12,15 @@ models:
   - anthropic/claude-opus-4.7
   - openai/gpt-5.4
   - google/gemini-3.1-pro-preview
-  - deepseek/deepseek-v3
+  - deepseek/deepseek-v3.2
   # Tier B: Other frontier open-weight
   - meta-llama/llama-4-maverick
-  - qwen/qwen-3-72b-instruct
+  - qwen/qwen3-235b-a22b
   - mistralai/mistral-large-2411
   # Tier C: Smaller open-weight (~8B)
   - meta-llama/llama-3.1-8b-instruct
-  - qwen/qwen-3-8b-instruct
-  - mistralai/ministral-8b-instruct
+  - qwen/qwen3-8b
+  - mistralai/ministral-14b-2512
 
 # Judge panel for Ward feature extraction. The panel composition is a design variable and is
 # expected to be updated as stronger or more diverse judges become
@@ -49,11 +49,31 @@ judge_overrides:
     # judge. The resolved version is recorded per-call as
     # judge_model_resolved on every extraction row.
     model_id: claude-opus-4-6
+    # Optional AWS Bedrock failover. When set to true, a 429 from the
+    # direct Anthropic API triggers a one-shot retry against Bedrock
+    # using `bedrock_model_id`. The judge then routes through Bedrock
+    # for a short cooldown (30 s) so subsequent calls do not re-trip
+    # the same per-minute rate limit. Once the cooldown lapses the
+    # next call tries the direct API again, returning to the primary
+    # path when traffic has cleared. Set the AWS env vars in .env to
+    # enable boto3's credential chain. `judge_model_resolved` will
+    # show the Bedrock slug for failed-over calls, the Anthropic slug
+    # otherwise; both target the same underlying snapshot.
+    bedrock_fallback: true
+    bedrock_model_id: us.anthropic.claude-opus-4-6-v1
   google/gemini-3.1-pro-preview:
     provider: google
-    # The resolved version is recorded per-call as judge_model_resolved on
-    # every extraction row.
+    # Routed through Vertex AI rather than AI Studio. AI Studio's daily
+    # per-model quota (250/day on Tier 1) is too low for the extraction
+    # workload; Vertex exposes the same model with a much higher pool.
+    # Auth: Application Default Credentials (gcloud auth application-default
+    # login or GOOGLE_APPLICATION_CREDENTIALS pointing to a service-account
+    # JSON). Project id and region come from GOOGLE_VERTEX_PROJECT and
+    # GOOGLE_VERTEX_LOCATION in .env. The resolved version is recorded
+    # per-call as judge_model_resolved; on Vertex the string is shaped
+    # differently from the AI Studio response.
     model_id: gemini-3.1-pro-preview
+    use_vertex: true
   openai/gpt-5.4:
     provider: openai
     # Pinned to the dated March 2026 snapshot so the judge is reproducible
@@ -72,6 +92,13 @@ primary_metric: ward
 
 # Number of samples per model per prompt variant
 samples_per_condition: 50
+
+# TEMPORARY cost cap. When set, every stage AFTER generate operates on
+# only the first N samples per (model, prompt_variant) cell, ordered by
+# `sample_index`. Generation files on disk are not rewritten; the cap is
+# a read-time filter. Remove this line (or set to null) to restore full
+# samples_per_condition coverage. Set back to 50 before final analysis.
+samples_per_condition_cap: 30
 
 # Generation parameters
 temperature: 1.0
