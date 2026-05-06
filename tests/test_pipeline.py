@@ -300,6 +300,40 @@ openrouter_base_url: https://openrouter.ai/api/v1
         for path in gen_root.rglob("_reservations"):
             assert not any(path.iterdir()), f"leftover reservation files in {path}"
 
+    def test_empty_generation_response_not_stored(self, tmp_config, tmp_path, monkeypatch):
+        """An empty 200 from the upstream model must not be marked complete.
+
+        ``OpenRouterClient.complete`` raises ``MalformedOpenRouterResponse``
+        on whitespace-only content, which ``generate.run`` catches and
+        defers to the next run rather than appending an empty record.
+        """
+        from alienbench import generate
+        from alienbench.client import MalformedOpenRouterResponse
+        from alienbench.paths import reservations_dir
+
+        mock_client = MagicMock()
+        def fake_complete(model, prompt, temperature, max_tokens, system=None, seed=None):
+            raise MalformedOpenRouterResponse("test: empty content")
+        mock_client.complete.side_effect = fake_complete
+        monkeypatch.setattr(generate, "OpenRouterClient", lambda cfg: mock_client)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+
+        generate.run(tmp_config)  # Should not raise
+
+        out = (
+            Path(tmp_path) / "data" / "generations"
+            / "openai__gpt-4o-mini" / "baseline" / "responses.jsonl"
+        )
+        if out.exists():
+            records = [json.loads(line) for line in out.read_text().splitlines() if line.strip()]
+            assert records == [], f"expected no records on empty response, got {records!r}"
+
+        res_dir = reservations_dir(Path(tmp_path) / "data", "openai/gpt-4o-mini", "baseline")
+        if res_dir.exists():
+            assert not any(res_dir.iterdir()), (
+                "reservation files leaked after empty-response failure"
+            )
+
 
 class TestExtractStage:
     def _run_generate(self, tmp_config, tmp_path, monkeypatch):
@@ -455,6 +489,50 @@ openrouter_base_url: https://openrouter.ai/api/v1
         if out.exists():
             records = [json.loads(line) for line in out.read_text().splitlines() if line.strip()]
             assert records == [], f"expected no records on parse failure, got {records!r}"
+
+    def test_empty_judge_response_not_stored(self, tmp_config, tmp_path, monkeypatch):
+        """An empty 200 from a judge must not be marked complete.
+
+        The judge wrappers raise ``EmptyJudgeResponse`` on whitespace-only
+        text so ``extract.run`` skips the JSONL write and the generation
+        is retried on the next run, identical to the API-error path.
+        """
+        from alienbench import extract
+        from alienbench.client import Response
+        from alienbench.judges import EmptyJudgeResponse
+
+        self._run_generate(tmp_config, tmp_path, monkeypatch)
+
+        # A judge that mimics the wrappers: empty text raises rather than
+        # returning an empty Response. parse_features would never see this
+        # because the wrapper short-circuits before formatting succeeds.
+        def empty_judge_factory(alias, cfg):
+            m = MagicMock()
+            def fake_complete(prompt, temperature, max_tokens, system=None):
+                raise EmptyJudgeResponse("test: empty content")
+            m.complete.side_effect = fake_complete
+            return m
+
+        monkeypatch.setattr(extract, "make_judge", empty_judge_factory)
+        extract.run(tmp_config)  # Should not raise
+
+        out = (
+            Path(tmp_path) / "data" / "extractions"
+            / "openai__gpt-4o-mini" / "openai__gpt-4o-mini" / "baseline" / "features.jsonl"
+        )
+        if out.exists():
+            records = [json.loads(line) for line in out.read_text().splitlines() if line.strip()]
+            assert records == [], f"expected no records on empty judge response, got {records!r}"
+
+        from alienbench.paths import extraction_reservations_dir
+        res_dir = extraction_reservations_dir(
+            Path(tmp_path) / "data",
+            "openai/gpt-4o-mini", "openai/gpt-4o-mini", "baseline",
+        )
+        if res_dir.exists():
+            assert not any(res_dir.iterdir()), (
+                "reservation files leaked after empty-response failure"
+            )
 
 
 class TestParseFeaturesSchema:
