@@ -29,6 +29,17 @@ then aggregates the resulting Ward scores. Output paths are keyed by
 prompt id (see ``alienbench.paths``), so paraphrase runs coexist with
 the main pipeline in the same ``data_dir`` and benefit from the
 existing resume-on-restart logic.
+
+The ablation runs at a reduced per-cell N
+(``Config.prompt_ablation_samples_per_condition``, default 10) rather
+than ``samples_per_condition``, because each new paraphrase costs a
+full generate/extract/score pass over every (subject_model, judge)
+cell. The ``baseline`` paraphrase id collides with the main
+``prompt_variants`` baseline by design (see
+``Config._check_paraphrase_id_collision``); the baseline column of
+the ablation therefore reuses the main-pipeline records and inherits
+the main-pipeline N at that cell only, anchoring the ablation to the
+ranking reported in the main results.
 """
 
 from __future__ import annotations
@@ -71,11 +82,19 @@ def _materialize_paraphrase_config(cfg: Config, out_path: Path) -> Path:
 
     The shadow config is consumed by the main pipeline stages unchanged.
     """
+    # The paraphrase ablation runs at a reduced per-cell N controlled by
+    # ``prompt_ablation_samples_per_condition``. The shadow config sets
+    # ``samples_per_condition`` to that value, which drives every pipeline
+    # stage (generate creates this many; extract / score / analyze clip
+    # to the same window). The baseline paraphrase shares on-disk paths
+    # with the main pipeline; ``load_ward_scores`` reads whatever Ward
+    # records are present for that cell.
+    paraphrase_n = cfg.prompt_ablation_samples_per_condition
     data = {
         "models": list(cfg.models),
         "judge_models": list(cfg.judge_models),
         "prompt_variants": [p.model_dump() for p in cfg.prompt_paraphrases],
-        "samples_per_condition": cfg.samples_per_condition,
+        "samples_per_condition": paraphrase_n,
         "temperature": cfg.temperature,
         "max_tokens": cfg.max_tokens,
         "data_dir": cfg.data_dir,

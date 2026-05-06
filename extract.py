@@ -178,19 +178,17 @@ def run(
         for model in models_to_process:
             for variant in cfg.prompt_variants:
                 out_path = extractions_path(data_dir, judge, model, variant.id)
-                # ``cap`` honours the optional cost-cap configured via
-                # ``Config.samples_per_condition_cap`` (see config.py).
-                # When set, only the first ``cap`` generations per cell
-                # by ``sample_index`` enter the extraction pool; others
-                # remain on disk and are picked up if the cap is later
-                # removed.
+                # Clip to the canonical per-cell N (``samples_per_condition``,
+                # see config.py). Generations with ``sample_index >=
+                # samples_per_condition`` (e.g. from an earlier run at a
+                # higher N) remain on disk and are silently skipped here.
                 pending_by_id = {
                     gen["id"]: gen
                     for gen in iter_generations(
                         data_dir,
                         model,
                         variant.id,
-                        cap=cfg.samples_per_condition_cap,
+                        cap=cfg.samples_per_condition,
                     )
                 }
                 if not pending_by_id:
@@ -203,9 +201,10 @@ def run(
 
     # Count remaining as |pending - done| per cell. A naive
     # n_existing - n_total can go negative when the on-disk JSONL
-    # contains records for ids outside the current cap (e.g. the cap
-    # was lowered after extractions were written), which inflates
-    # n_existing without contributing to cap-eligible progress.
+    # contains records for ids outside the current N (e.g.
+    # ``samples_per_condition`` was lowered after extractions were
+    # written), which inflates n_existing without contributing to
+    # in-window progress.
     n_total = sum(len(p) for _, _, _, _, p in cells)
     n_remaining = sum(
         len(set(p) - load_extracted_ids(out)) for _, _, _, out, p in cells

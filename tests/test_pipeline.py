@@ -953,16 +953,17 @@ class TestMakeJudgeFactory:
             make_judge("google/gemini-3.1-pro-preview", cfg)
 
 
-class TestSamplesPerConditionCap:
-    """``samples_per_condition_cap`` filters every stage after generate.
+class TestSamplesPerCondition:
+    """``samples_per_condition`` is the canonical per-cell N.
 
-    Generation files on disk are not rewritten. The cap is a read-time
-    filter ordered by ``sample_index``, so cap=3 means
-    ``sample_index in {0, 1, 2}``.
+    Every stage after generate clips to the first ``samples_per_condition``
+    records by ``sample_index``. Generation files on disk are not
+    rewritten when N is lowered; records with ``sample_index >= N``
+    remain dormant on disk and reactivate if N is raised again.
     """
 
     def test_iter_generations_cap_orders_by_sample_index(self, tmp_path):
-        """Cap must sort by sample_index and yield first N, regardless of write order.
+        """``cap`` on iter_generations sorts by sample_index, regardless of write order.
 
         JSONL writes interleave across reservation workers in the real
         pipeline, so write order does not equal sample_index order. The
@@ -988,16 +989,18 @@ class TestSamplesPerConditionCap:
         assert [r["sample_index"] for r in out] == [0, 1, 2]
         assert [r["id"] for r in out] == ["id-0", "id-1", "id-2"]
 
-        # cap=None yields lazily in write order (legacy behaviour).
+        # cap=None yields lazily in write order (legacy behaviour, still
+        # used by callers that need to enumerate every record on disk).
         out_uncapped = list(iter_generations(tmp_path, "m1", "v1"))
         assert [r["sample_index"] for r in out_uncapped] == [4, 0, 2, 1, 3]
 
-    def test_extract_respects_cap_end_to_end(self, tmp_path, monkeypatch):
-        """Generate 5 samples, extract with cap=3, verify only 3 extractions.
+    def test_extract_clips_stale_on_disk_records(self, tmp_path, monkeypatch):
+        """Extract clips on-disk generations to the current samples_per_condition.
 
-        Disk state: generations JSONL keeps all 5 records (not rewritten),
-        extractions JSONL holds 3 records corresponding to sample_index
-        0, 1, 2. This is the contract the cost-cap relies on.
+        Simulates the "lowered N after data was generated at a higher N"
+        scenario: 5 generations on disk, samples_per_condition=3.
+        Extract should process only sample_index in {0, 1, 2}. The
+        extra two generations remain dormant on disk.
         """
         from alienbench import extract, generate
 
@@ -1009,7 +1012,6 @@ models:
 judge_models:
   - openai/gpt-4o-mini
 samples_per_condition: 5
-samples_per_condition_cap: 3
 temperature: 1.0
 max_tokens: 400
 prompt_variants:
@@ -1028,6 +1030,13 @@ openrouter_base_url: https://openrouter.ai/api/v1
         monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
         generate.run(str(cfg_path))
 
+        # Lower N to 3 and run extract. The 5 on-disk generations should
+        # be clipped to the first 3 by sample_index.
+        cfg_path.write_text(
+            cfg_path.read_text().replace(
+                "samples_per_condition: 5", "samples_per_condition: 3"
+            )
+        )
         monkeypatch.setattr(extract, "make_judge", make_mock_judge(_FAKE_EXTRACTION_JSON))
         extract.run(str(cfg_path))
 
@@ -1044,22 +1053,23 @@ openrouter_base_url: https://openrouter.ai/api/v1
         gen_records = [json.loads(l) for l in gen_path.read_text().splitlines() if l.strip()]
         ext_records = [json.loads(l) for l in ext_path.read_text().splitlines() if l.strip()]
 
-        # Generations untouched: full samples_per_condition on disk.
+        # Generations untouched: 5 records remain on disk.
         assert len(gen_records) == 5
 
-        # Extractions only for sample_index < cap (cap=3).
+        # Extractions only for sample_index < N (N=3 after the rewrite).
         assert len(ext_records) == 3
-        capped_gen_ids = {
+        in_window_ids = {
             g["id"] for g in gen_records if g["sample_index"] < 3
         }
-        assert {e["generation_id"] for e in ext_records} == capped_gen_ids
+        assert {e["generation_id"] for e in ext_records} == in_window_ids
 
-    def test_score_respects_cap(self, tmp_path, monkeypatch):
-        """Score stage drops extractions whose generation_id is above the cap.
+    def test_score_clips_stale_on_disk_records(self, tmp_path, monkeypatch):
+        """Score drops extractions whose sample_index falls outside samples_per_condition.
 
-        Even if extractions exist on disk for sample_index >= cap (e.g.
-        from a previous uncapped run), they sit dormant. The Ward
-        scores file matches the cap.
+        Simulates extracting at a higher N then scoring at a lower N
+        (e.g. the user reduced ``samples_per_condition`` between runs):
+        even with 5 extractions on disk, score writes only 3 Ward
+        records when N=3.
         """
         from alienbench import extract, generate, score
 
@@ -1089,12 +1099,16 @@ openrouter_base_url: https://openrouter.ai/api/v1
         monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
         generate.run(str(cfg_path))
 
-        # First pass: extract with no cap, producing 5 extraction records.
+        # First pass: extract at N=5, producing 5 extraction records.
         monkeypatch.setattr(extract, "make_judge", make_mock_judge(_FAKE_EXTRACTION_JSON))
         extract.run(str(cfg_path))
 
-        # Now activate the cap by rewriting the config file, and run score.
-        cfg_path.write_text(cfg_path.read_text() + "\nsamples_per_condition_cap: 3\n")
+        # Lower N to 3, then run score. Score must clip to 3.
+        cfg_path.write_text(
+            cfg_path.read_text().replace(
+                "samples_per_condition: 5", "samples_per_condition: 3"
+            )
+        )
         score.run(str(cfg_path))
 
         ward_path = (
@@ -1106,24 +1120,6 @@ openrouter_base_url: https://openrouter.ai/api/v1
 
         # Despite 5 extractions on disk, score only emits 3 ward records.
         assert len(ward_records) == 3
-
-    def test_config_rejects_cap_above_samples(self):
-        """Setting cap > samples_per_condition is meaningless and must error.
-
-        The cap can only ever filter the existing generations; allowing
-        cap > samples_per_condition would silently produce a smaller
-        result than the user asked for once the data is the bottleneck.
-        """
-        from alienbench.config import Config, PromptVariant
-
-        with pytest.raises(ValueError, match="cannot exceed"):
-            Config(
-                models=["x"],
-                judge_models=["y"],
-                prompt_variants=[PromptVariant(id="b", label="b", text="x")],
-                samples_per_condition=10,
-                samples_per_condition_cap=20,
-            )
 
 
 class TestAnthropicBedrockFailover:

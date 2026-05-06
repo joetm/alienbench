@@ -1,12 +1,12 @@
 Measure,α (all),α (cross-model),α (same-model),Δ self−cross
-Ward Total (0–10),0.798,,,0.222
-Ward: symmetry,1.000,,,0.000
-Ward: sensory_organs,0.708,,,0.056
-Ward: locomotion,0.556,,,0.056
-Ward: body_plan,0.614,,,-0.028
-Ward: skin_covering,0.609,,,-0.083
-Ward: reproduction,0.885,,,0.056
-Ward: metabolism,0.942,,,0.028
-Ward: communication,0.433,,,0.028
-Ward: habitat,0.406,,,0.111
-Ward: cognition,0.842,,,0.000
+Ward Total (0–10),0.913,0.909,,-0.256
+Ward: symmetry,0.881,0.879,,-0.007
+Ward: sensory_organs,0.551,0.538,,-0.008
+Ward: locomotion,0.904,0.903,,0.004
+Ward: body_plan,0.848,0.845,,0.003
+Ward: skin_covering,0.632,0.623,,-0.079
+Ward: reproduction,0.937,0.940,,-0.036
+Ward: metabolism,0.782,0.777,,-0.047
+Ward: communication,0.692,0.678,,-0.043
+Ward: habitat,0.761,0.771,,-0.029
+Ward: cognition,0.857,0.852,,-0.013

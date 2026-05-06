@@ -1,23 +1,23 @@
 \begin{table}[htbp]
   \centering
-  \caption{Ward Departure Scores (0--10) by model and prompt condition. Rows are subject models; columns are prompt conditions with a final Overall column averaged across all conditions. Cells report mean (SD) across generations after averaging judges per generation; bold marks the top model in each column. Column headers: Base = baseline, Dep-P = departure-primed, NoLight = constrained (no light), HighG = constrained (10$\times$ Earth gravity), NH$_3$ = constrained (ammonia oceans), Detail = detailed description.}
-  \label{tab:ward_scores}
+  \caption{Ward Departure Scores (0--10) by model and prompt condition. Rows are subject models; columns are prompt conditions with a final Overall column averaged across all conditions. Per-condition cells report mean (SD) across generations after averaging judges per generation. The Overall column reports the per-model mean with a bootstrap percentile 95\% CI in brackets ($B=10{,}000$) over per-generation judge-averaged Ward scores. Bold marks the top model in each column. Column headers: Base = baseline, Dep-P = departure-primed, NoLight = constrained (no light), HighG = constrained (10$\times$ Earth gravity), NH$_3$ = constrained (ammonia oceans), Detail = detailed description.}
   \small
+  \label{tab:ward_scores}
   \resizebox{\textwidth}{!}{%
   \begin{tabular}{lccccccc}
     \toprule
     Model & Base & Dep-P & NoLight & HighG & NH$_3$ & Detail & Overall \\
     \midrule
-    Claude Opus 4.7  \todo{(20XX-XX-XX)}        & --- & --- & --- & --- & --- & --- & --- \\
-    GPT 5.4  \todo{(20XX-XX-XX)}                & --- & --- & --- & --- & --- & --- & --- \\
-    Gemini 3.1 Pro Preview \todo{(20XX-XX-XX)}         & --- & --- & --- & --- & --- & --- & --- \\
-    DeepSeek v3.2  \todo{(20XX-XX-XX)}            & --- & --- & --- & --- & --- & --- & --- \\
-    Llama 4 Maverick  \todo{(20XX-XX-XX)}       & --- & --- & --- & --- & --- & --- & --- \\
-    Qwen 3 235B  \todo{(20XX-XX-XX)}    & --- & --- & --- & --- & --- & --- & --- \\
-    Mistral Large 2411  \todo{(20XX-XX-XX)}     & --- & --- & --- & --- & --- & --- & --- \\
-    Llama 3.1 8B Instruct  \todo{(20XX-XX-XX)}  & --- & --- & --- & --- & --- & --- & --- \\
-    Qwen 3 8B \todo{(20XX-XX-XX)}      & --- & --- & --- & --- & --- & --- & --- \\
-    Ministral 14B \todo{(20XX-XX-XX)}   & --- & --- & --- & --- & --- & --- & --- \\
+    claude-opus-4.7 & 4.72 (1.42) & 8.82 (1.14) & 3.11 (1.13) & 0.92 (0.95) & 4.48 (1.19) & 4.97 (2.48) & 4.50\,[4.10, 4.91] \\
+    gpt-5.4 & 3.14 (1.22) & 8.14 (0.89) & 2.34 (0.58) & 0.63 (0.67) & 4.67 (1.13) & 2.50 (1.40) & 3.57\,[3.21, 3.96] \\
+    gemini-3.1-pro-preview & 2.92 (1.27) & \textbf{9.47 (0.51)} & 2.93 (1.05) & \textbf{4.20 (0.85)} & 5.13 (0.76) & 3.76 (1.34) & 4.74\,[4.38, 5.11] \\
+    deepseek-v3.2 & \textbf{6.18 (1.42)} & 9.46 (0.57) & 4.92 (2.36) & 3.19 (1.59) & 5.10 (1.19) & \textbf{5.69 (1.99)} & \textbf{5.76\,[5.39, 6.12]} \\
+    llama-4-maverick & 3.40 (1.63) & 8.73 (0.87) & 5.48 (1.52) & 1.71 (1.33) & 4.99 (1.65) & 4.11 (2.45) & 4.74\,[4.34, 5.13] \\
+    qwen3-235b-a22b & 5.01 (1.97) & 8.99 (0.48) & 3.83 (1.50) & 1.87 (1.41) & 4.73 (1.25) & 5.36 (2.41) & 4.96\,[4.57, 5.36] \\
+    mistral-large-2411 & 1.82 (1.77) & 8.59 (0.84) & 2.67 (1.43) & 0.56 (0.65) & 3.34 (1.81) & 1.63 (1.73) & 3.10\,[2.68, 3.54] \\
+    llama-3.1-8b-instruct & 4.17 (1.98) & 7.27 (1.36) & 5.44 (1.87) & 1.11 (1.10) & \textbf{5.44 (1.40)} & 3.66 (2.36) & 4.51\,[4.14, 4.89] \\
+    qwen3-8b & 4.84 (2.20) & 9.33 (0.59) & \textbf{6.12 (1.31)} & 0.94 (0.82) & 5.03 (0.95) & 4.77 (2.14) & 5.17\,[4.76, 5.59] \\
+    ministral-14b-2512 & 4.96 (2.32) & 8.38 (0.87) & 5.28 (1.29) & 1.79 (1.56) & 5.16 (1.03) & 5.48 (2.29) & 5.17\,[4.81, 5.54] \\
     \bottomrule
   \end{tabular}%
   }

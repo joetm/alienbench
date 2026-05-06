@@ -2,72 +2,133 @@
 
 ## Ward Departure Score by Model (bootstrap 95% CI)
 
-  google/gemini-2.0-flash-001: 5.14 [3.97, 6.33] (n=18)
-  openai/gpt-4o: 3.75 [2.61, 5.00] (n=18)
+  anthropic/claude-opus-4.7: 4.50 [4.10, 4.91] (n=180)
+  deepseek/deepseek-v3.2: 5.76 [5.39, 6.12] (n=180)
+  google/gemini-3.1-pro-preview: 4.74 [4.38, 5.11] (n=180)
+  meta-llama/llama-3.1-8b-instruct: 4.51 [4.14, 4.89] (n=180)
+  meta-llama/llama-4-maverick: 4.74 [4.34, 5.13] (n=180)
+  mistralai/ministral-14b-2512: 5.17 [4.81, 5.54] (n=180)
+  mistralai/mistral-large-2411: 3.10 [2.68, 3.54] (n=180)
+  openai/gpt-5.4: 3.57 [3.21, 3.96] (n=180)
+  qwen/qwen3-235b-a22b: 4.96 [4.57, 5.36] (n=180)
+  qwen/qwen3-8b: 5.17 [4.76, 5.59] (n=180)
 
 ## Inter-Rater Reliability (Ward Total, stratified)
 
-  α all-pairs     = 0.798  (n=72)
-  α cross-model   = nan  (n=36)
-  α same-model    = nan  (n=36)
-  Δ̄ self−cross    = 0.222 score points
+  α all-pairs     = 0.913  (n=5400)
+  α cross-model   = 0.909  (n=5040)
+  α same-model    = nan  (n=360)
+  Δ̄ self−cross    = -0.256 score points
   Self-judge exclusion rule triggered: no — self-judge pairs may remain in the primary analysis.
 
 ## Prompt Variant Effects (Kruskal-Wallis + Post-Hoc)
 
-  Kruskal-Wallis: H=20.59, p=0.0010
+  Kruskal-Wallis: H=943.77, p=0.0000
 
   Pairwise Mann-Whitney U (Bonferroni-corrected, rank-biserial 95% CI):
 
-    baseline vs constrained_ammonia: U=20, p=1.0000, r=-0.111 [-0.778, 0.611]
-    baseline vs constrained_high_gravity: U=32, p=0.5506, r=-0.750 [-1.000, -0.278]
-    baseline vs constrained_no_light: U=21, p=1.0000, r=-0.167 [-0.861, 0.583]
-    baseline vs departure_primed: U=0, p=0.0738, r=1.000 [1.000, 1.000]
-    baseline vs detailed_description: U=24, p=1.0000, r=-0.306 [-0.889, 0.361]
-    constrained_ammonia vs constrained_high_gravity: U=32, p=0.4465, r=-0.778 [-1.000, -0.333]
-    constrained_ammonia vs constrained_no_light: U=23, p=1.0000, r=-0.278 [-0.861, 0.389]
-    constrained_ammonia vs departure_primed: U=0, p=0.0716, r=1.000 [1.000, 1.000]
-    constrained_ammonia vs detailed_description: U=24, p=1.0000, r=-0.306 [-1.000, 0.389]
-    constrained_high_gravity vs constrained_no_light: U=4, p=0.4465, r=0.778 [0.167, 1.000]
-    constrained_high_gravity vs departure_primed: U=0, p=0.0727, r=1.000 [1.000, 1.000]
-    constrained_high_gravity vs detailed_description: U=8, p=1.0000, r=0.556 [-0.056, 1.000]
-    constrained_no_light vs departure_primed: U=0, p=0.0716, r=1.000 [1.000, 1.000]
-    constrained_no_light vs detailed_description: U=24, p=1.0000, r=-0.306 [-1.000, 0.417]
-    departure_primed vs detailed_description: U=36, p=0.0738, r=-1.000 [-1.000, -1.000]
+    baseline vs constrained_ammonia: U=35188, p=0.0001*, r=0.218 [0.127, 0.313]
+    baseline vs constrained_high_gravity: U=73562, p=0.0000*, r=-0.635 [-0.699, -0.566]
+    baseline vs constrained_no_light: U=44101, p=1.0000, r=0.020 [-0.073, 0.114]
+    baseline vs departure_primed: U=2359, p=0.0000*, r=0.948 [0.924, 0.968]
+    baseline vs detailed_description: U=44608, p=1.0000, r=0.009 [-0.082, 0.101]
+    constrained_ammonia vs constrained_high_gravity: U=82305, p=0.0000*, r=-0.829 [-0.872, -0.783]
+    constrained_ammonia vs constrained_no_light: U=55128, p=0.0000*, r=-0.225 [-0.317, -0.131]
+    constrained_ammonia vs departure_primed: U=1376, p=0.0000*, r=0.969 [0.947, 0.987]
+    constrained_ammonia vs detailed_description: U=53248, p=0.0015*, r=-0.183 [-0.277, -0.085]
+    constrained_high_gravity vs constrained_no_light: U=14203, p=0.0000*, r=0.684 [0.621, 0.742]
+    constrained_high_gravity vs departure_primed: U=151, p=0.0000*, r=0.997 [0.992, 1.000]
+    constrained_high_gravity vs detailed_description: U=17975, p=0.0000*, r=0.601 [0.529, 0.668]
+    constrained_no_light vs departure_primed: U=2606, p=0.0000*, r=0.942 [0.916, 0.964]
+    constrained_no_light vs detailed_description: U=45616, p=1.0000, r=-0.014 [-0.108, 0.082]
+    departure_primed vs detailed_description: U=85881, p=0.0000*, r=-0.908 [-0.937, -0.875]
 
   Retrospective power (Mann-Whitney U, Bonferroni α'=0.0033):
-    Minimum detectable |r| at 80% power: not reached in grid
-    observed |r|=0.111 -> simulated power=0.00
-    observed |r|=0.750 -> simulated power=0.09
-    observed |r|=0.167 -> simulated power=0.00
-    observed |r|=1.000 -> simulated power=0.21
-    observed |r|=0.306 -> simulated power=0.01
-    observed |r|=0.778 -> simulated power=0.10
-    observed |r|=0.278 -> simulated power=0.01
-    observed |r|=0.778 -> simulated power=0.08
-    observed |r|=0.556 -> simulated power=0.05
+    Minimum detectable |r| at 80% power: 0.20
+    observed |r|=0.218 -> simulated power=0.95
+    observed |r|=0.635 -> simulated power=1.00
+    observed |r|=0.020 -> simulated power=0.01
+    observed |r|=0.948 -> simulated power=1.00
+    observed |r|=0.009 -> simulated power=0.01
+    observed |r|=0.829 -> simulated power=1.00
+    observed |r|=0.225 -> simulated power=0.96
+    observed |r|=0.969 -> simulated power=1.00
+    observed |r|=0.183 -> simulated power=0.83
+    observed |r|=0.684 -> simulated power=1.00
+    observed |r|=0.997 -> simulated power=1.00
+    observed |r|=0.601 -> simulated power=1.00
+    observed |r|=0.942 -> simulated power=1.00
+    observed |r|=0.014 -> simulated power=0.00
+    observed |r|=0.908 -> simulated power=1.00
+
+## Extraction Reliability (per-judge success rates)
+
+  anthropic/claude-opus-4.6: 100.0% successful (1800/1800; 0 parse_error, 0 api_error)
+  google/gemini-3.1-pro-preview: 100.0% successful (1800/1800; 0 parse_error, 0 api_error)
+  openai/gpt-5.4: 100.0% successful (1800/1800; 0 parse_error, 0 api_error)
 
 ## Token Count vs. Ward Score (Instruction-Following Covariate)
 
-  Overall: ρ=0.056 [-0.269, 0.385], p=0.7459 (n=36)
-  baseline: ρ=0.698 [-0.127, 1.000], p=0.1228 (n=6)  [TOKEN-CONFOUNDED]
-  constrained_ammonia: ρ=0.806 [0.000, 1.000], p=0.0528 (n=6)  [TOKEN-CONFOUNDED]
-  constrained_high_gravity: ρ=0.223 [-0.866, 0.894], p=0.6711 (n=6)
-  constrained_no_light: ρ=-0.625 [-1.000, 0.447], p=0.1843 (n=6)
-  departure_primed: ρ=0.508 [-1.000, 1.000], p=0.3041 (n=6)
-  detailed_description: ρ=0.213 [-1.000, 1.000], p=0.6860 (n=6)
-  Cross-condition median ρ = 0.365; flag threshold (median + 0.15) = 0.515
-  Flagged conditions should be excluded from primary model-comparison analyses: baseline, constrained_ammonia
+  Overall: ρ=0.029 [-0.016, 0.075], p=0.2251 (n=1800)
+  baseline: ρ=0.022 [-0.085, 0.131], p=0.7067 (n=300)
+  constrained_ammonia: ρ=0.007 [-0.108, 0.125], p=0.9075 (n=300)
+  constrained_high_gravity: ρ=0.271 [0.164, 0.376], p=0.0000 (n=300)  [TOKEN-CONFOUNDED]
+  constrained_no_light: ρ=0.001 [-0.114, 0.115], p=0.9849 (n=300)
+  departure_primed: ρ=0.294 [0.187, 0.393], p=0.0000 (n=300)  [TOKEN-CONFOUNDED]
+  detailed_description: ρ=0.103 [-0.001, 0.205], p=0.0739 (n=300)
+  Cross-condition median ρ = 0.063; flag threshold (median + 0.15) = 0.213
+  Flagged conditions should be excluded from primary model-comparison analyses: constrained_high_gravity, departure_primed
+
+## Length-Adjusted Ward Score (per 100 completion tokens)
+
+
+  Per-model mean (bootstrap 95% CI):
+    anthropic/claude-opus-4.7: ward_per_100=0.611 [0.555, 0.669] (n=180)
+    deepseek/deepseek-v3.2: ward_per_100=0.740 [0.691, 0.789] (n=180)
+    google/gemini-3.1-pro-preview: ward_per_100=0.199 [0.184, 0.215] (n=180)
+    meta-llama/llama-3.1-8b-instruct: ward_per_100=0.599 [0.548, 0.649] (n=180)
+    meta-llama/llama-4-maverick: ward_per_100=0.621 [0.569, 0.674] (n=180)
+    mistralai/ministral-14b-2512: ward_per_100=0.647 [0.602, 0.693] (n=180)
+    mistralai/mistral-large-2411: ward_per_100=0.399 [0.344, 0.457] (n=180)
+    openai/gpt-5.4: ward_per_100=0.456 [0.409, 0.504] (n=180)
+    qwen/qwen3-235b-a22b: ward_per_100=0.262 [0.237, 0.288] (n=180)
+    qwen/qwen3-8b: ward_per_100=0.252 [0.232, 0.273] (n=180)
+
+  Agreement with raw Ward (Spearman ρ on per-model means): ρ=0.248, p=0.4888
+
+  Prompt Variant Effects on ward_per_100 (Kruskal-Wallis + Post-Hoc):
+    Kruskal-Wallis: H=650.42, p=0.0000
+
+    Pairwise Mann-Whitney U (Bonferroni-corrected):
+      baseline vs constrained_ammonia: U=38710, p=0.0457*, r=0.140 [0.047, 0.232]
+      baseline vs constrained_high_gravity: U=73428, p=0.0000*, r=-0.632 [-0.697, -0.563]
+      baseline vs constrained_no_light: U=45424, p=1.0000, r=-0.009 [-0.101, 0.083]
+      baseline vs departure_primed: U=15012, p=0.0000*, r=0.666 [0.601, 0.728]
+      baseline vs detailed_description: U=46606, p=1.0000, r=-0.036 [-0.127, 0.058]
+      constrained_ammonia vs constrained_high_gravity: U=80278, p=0.0000*, r=-0.784 [-0.832, -0.733]
+      constrained_ammonia vs constrained_no_light: U=52152, p=0.0113*, r=-0.159 [-0.252, -0.065]
+      constrained_ammonia vs departure_primed: U=17258, p=0.0000*, r=0.616 [0.543, 0.686]
+      constrained_ammonia vs detailed_description: U=52996, p=0.0025*, r=-0.178 [-0.270, -0.084]
+      constrained_high_gravity vs constrained_no_light: U=15160, p=0.0000*, r=0.663 [0.597, 0.723]
+      constrained_high_gravity vs departure_primed: U=3006, p=0.0000*, r=0.933 [0.909, 0.954]
+      constrained_high_gravity vs detailed_description: U=19060, p=0.0000*, r=0.576 [0.503, 0.646]
+      constrained_no_light vs departure_primed: U=14807, p=0.0000*, r=0.671 [0.606, 0.731]
+      constrained_no_light vs detailed_description: U=46810, p=1.0000, r=-0.040 [-0.132, 0.052]
+      departure_primed vs detailed_description: U=74721, p=0.0000*, r=-0.660 [-0.721, -0.595]
+
+  Post-hoc divergence: 2 of 15 pairs differ between raw and length-adjusted analyses (sign flip or α'=0.05 significance flip).
+    baseline vs constrained_no_light: raw r=0.020 (p=1.0000), adj r=-0.009 (p=1.0000)
+    baseline vs detailed_description: raw r=0.009 (p=1.0000), adj r=-0.036 (p=1.0000)
 
 ## Per-Dimension Departure Rates (Training-Data Trope Analysis)
 
-  sensory_organs: 0.750
-  communication: 0.681
-  skin_covering: 0.569
-  body_plan: 0.458
-  locomotion: 0.444
-  reproduction: 0.389
-  metabolism: 0.375
-  habitat: 0.361
-  cognition: 0.222
-  symmetry: 0.194
+  sensory_organs: 0.790
+  body_plan: 0.619
+  skin_covering: 0.606
+  locomotion: 0.582
+  metabolism: 0.499
+  symmetry: 0.401
+  communication: 0.384
+  reproduction: 0.351
+  cognition: 0.231
+  habitat: 0.161

@@ -127,7 +127,7 @@ def run(config_path: str = "config.yaml") -> None:
                     model=model,
                     prompt=variant.text,
                     temperature=cfg.temperature,
-                    max_tokens=cfg.max_tokens,
+                    max_tokens=cfg.max_tokens_for(model),
                     seed=seed,
                 )
                 duration_seconds = time.monotonic() - call_start

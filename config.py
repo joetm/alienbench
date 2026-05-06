@@ -49,35 +49,39 @@ class JudgeOverride(BaseModel):
     bedrock_region_env: str = "AWS_REGION"
 
 
+class ModelOverride(BaseModel):
+    """Per-subject-model overrides for generation parameters.
+
+    Subject models in ``Config.models`` use the top-level ``max_tokens`` by
+    default. A model listed here overrides that value. Used for thinking
+    models whose hidden-reasoning tokens count against ``max_tokens`` and
+    therefore need a larger budget than non-thinking subjects.
+    """
+    max_tokens: int | None = None
+
+
 class Config(BaseModel):
     models: list[str]
     judge_models: list[str]
     prompt_variants: list[PromptVariant]
     prompt_paraphrases: list[PromptVariant] = []
-    samples_per_condition: int = 50
-    # Temporary cost cap on every stage AFTER generate. Canonical
-    # reference for the mechanism — other modules just read this field.
-    #
-    # When set, extract / score / analyze / human operate on only the
-    # first ``samples_per_condition_cap`` records per
-    # (subject_model, prompt_variant) cell, ordered ascending by the
-    # ``sample_index`` field on each generation record (set in
-    # generate.py). The cap is a read-time filter:
-    #
-    #   * Generation JSONLs on disk are NOT rewritten or truncated;
-    #     records for sample_index >= cap remain on disk and reactivate
-    #     once the cap is removed.
-    #   * Extraction or score records on disk that fall above the cap
-    #     (e.g. from a previous uncapped run) are silently skipped, not
-    #     deleted.
-    #   * The parse-failure denominator in analyze reflects the cap so
-    #     the reported failure rate matches the actual processed volume.
-    #
-    # Set to None (the default) to disable. The Pydantic model
-    # validator below enforces 1 <= cap <= samples_per_condition; a cap
-    # exceeding samples_per_condition is rejected because it cannot
-    # produce more rows than the data supports.
-    samples_per_condition_cap: int | None = None
+    # Canonical per-cell sample count. Every pipeline stage
+    # (generate / extract / score / analyze / human) clips to the first
+    # ``samples_per_condition`` records per (subject_model, prompt_variant)
+    # cell, ordered ascending by the ``sample_index`` field on each
+    # generation record (set in generate.py). On-disk records with
+    # ``sample_index >= samples_per_condition`` (e.g. from an earlier run
+    # at a higher N) remain on disk but are silently skipped.
+    samples_per_condition: int = 30
+    # Per-cell sample count for the Prompt Paraphrase Sensitivity ablation
+    # (alienbench/ablation_prompt.py). Lower than ``samples_per_condition``
+    # because each paraphrase costs a full generate+extract+score pass over
+    # every (subject_model, judge) cell; the ablation trades per-cell
+    # precision for breadth across paraphrases. The ``baseline`` paraphrase
+    # shares on-disk records with the main pipeline (see
+    # ``_check_paraphrase_id_collision`` below) and therefore inherits the
+    # main-pipeline per-cell N at that cell only.
+    prompt_ablation_samples_per_condition: int = 10
     temperature: float = 1.0
     max_tokens: int = 800
     data_dir: str = "data"
@@ -87,7 +91,20 @@ class Config(BaseModel):
     allowed_providers: list[str] | None = None
     allow_provider_fallbacks: bool = False
     judge_overrides: dict[str, JudgeOverride] = {}
+    model_overrides: dict[str, ModelOverride] = {}
     primary_metric: str = "ward"
+
+    def max_tokens_for(self, model: str) -> int:
+        """Return the effective ``max_tokens`` for a subject model.
+
+        Per-model overrides win over the top-level default. Used by
+        ``generate.run`` so thinking models can be given a larger budget
+        than non-thinking subjects without disturbing the rest of the panel.
+        """
+        override = self.model_overrides.get(model)
+        if override is not None and override.max_tokens is not None:
+            return override.max_tokens
+        return self.max_tokens
     @field_validator("samples_per_condition")
     @classmethod
     def positive_samples(cls, v: int) -> int:
@@ -95,19 +112,12 @@ class Config(BaseModel):
             raise ValueError("samples_per_condition must be at least 1")
         return v
 
-    @model_validator(mode="after")
-    def _check_samples_per_condition_cap(self) -> "Config":
-        cap = self.samples_per_condition_cap
-        if cap is None:
-            return self
-        if cap < 1:
-            raise ValueError("samples_per_condition_cap must be at least 1 when set")
-        if cap > self.samples_per_condition:
-            raise ValueError(
-                f"samples_per_condition_cap ({cap}) cannot exceed "
-                f"samples_per_condition ({self.samples_per_condition})."
-            )
-        return self
+    @field_validator("prompt_ablation_samples_per_condition")
+    @classmethod
+    def positive_prompt_ablation_samples(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("prompt_ablation_samples_per_condition must be at least 1")
+        return v
 
     @field_validator("prompt_variants", "prompt_paraphrases")
     @classmethod
@@ -159,6 +169,11 @@ class Config(BaseModel):
         if unknown:
             raise ValueError(
                 f"`judge_overrides` references aliases not in `judge_models`: {sorted(unknown)}."
+            )
+        unknown_subjects = set(self.model_overrides) - set(self.models)
+        if unknown_subjects:
+            raise ValueError(
+                f"`model_overrides` references models not in `models`: {sorted(unknown_subjects)}."
             )
         return self
 

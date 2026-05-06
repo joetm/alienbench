@@ -1,0 +1,30 @@
+\begin{table}[t]
+\centering
+\caption{Prompt paraphrase sensitivity. Top: per-model mean Ward Departure Score (0--10) under each surface rewording of the baseline prompt. Bottom: pairwise Spearman rank correlation $\rho$ of per-model means across paraphrases. High off-diagonal $\rho$ indicates that the paraphrase wording does not change the induced model ranking, but $\rho$ is invariant to uniform shifts in score and does not characterize absolute-score stability. An empirical null built by permuting model labels (10,000 draws) gives off-diagonal $95\%$ upper bounds in $[0.62,\ 0.65]$; cells marked $^\dagger$ exceed their null $95\%$ upper bound. Pairwise mean absolute difference of per-model Ward means across paraphrases lies in $[0.63,\ 2.52]$ points (on the 0--10 Ward scale), indicating the absolute-score shift that $\rho$ does not capture. Cells marked $^\ddagger$ satisfy the preregistered stability bars $\rho \geq 0.90$ and $\mathrm{MAD} \leq 1.00$ Ward points jointly; 2/30 off-diagonal pairs clear both bars.}
+\label{tab:ablation_prompt}
+\begin{tabular}{lcccccc}
+\toprule
+Model & Baseline & Paraphrase A & Paraphrase B & Paraphrase C & Paraphrase D & Paraphrase E \\
+\midrule
+anthropic/claude-opus-4.7 & 4.72 & 6.33 & 4.27 & 4.97 & 5.23 & 4.07 \\
+deepseek/deepseek-v3.2 & 6.18 & 7.90 & 4.90 & 7.23 & 6.57 & 5.40 \\
+google/gemini-3.1-pro-preview & 2.92 & 0.40 & 0.57 & 0.13 & 0.17 & 0.10 \\
+meta-llama/llama-3.1-8b-instruct & 4.17 & 6.03 & 4.90 & 4.63 & 4.07 & 4.37 \\
+meta-llama/llama-4-maverick & 3.40 & 6.80 & 5.53 & 4.87 & 4.80 & 4.30 \\
+mistralai/ministral-14b-2512 & 4.96 & 8.30 & 6.30 & 6.57 & 6.80 & 6.17 \\
+mistralai/mistral-large-2411 & 1.82 & 5.27 & 4.57 & 4.20 & 1.23 & 2.60 \\
+openai/gpt-5.4 & 3.14 & 5.33 & 3.33 & 4.90 & 3.57 & 3.67 \\
+qwen/qwen3-235b-a22b & 5.01 & 7.20 & 5.57 & 5.17 & 6.73 & 6.63 \\
+qwen/qwen3-8b & 4.84 & 7.80 & 6.77 & 6.87 & 7.23 & 6.33 \\
+\midrule
+Paraphrase & Baseline & Paraphrase A & Paraphrase B & Paraphrase C & Paraphrase D & Paraphrase E \\
+\midrule
+Baseline & 1.00 & 0.89$^\dagger$ & 0.63 & 0.89$^\dagger$ & 0.85$^\dagger$ & 0.87$^\dagger$ \\
+Paraphrase A & 0.89$^\dagger$ & 1.00 & 0.81$^\dagger$ & 0.90$^\dagger$ & 0.93$^\dagger$ & 0.85$^\dagger$ \\
+Paraphrase B & 0.63 & 0.81$^\dagger$ & 1.00 & 0.63 & 0.86$^\dagger$ & 0.89$^\dagger$ \\
+Paraphrase C & 0.89$^\dagger$ & 0.90$^\dagger$ & 0.63 & 1.00 & 0.89$^\dagger$ & 0.78$^\dagger$ \\
+Paraphrase D & 0.85$^\dagger$ & 0.93$^\dagger$ & 0.86$^\dagger$ & 0.89$^\dagger$ & 1.00 & 0.92$^\dagger$$^\ddagger$ \\
+Paraphrase E & 0.87$^\dagger$ & 0.85$^\dagger$ & 0.89$^\dagger$ & 0.78$^\dagger$ & 0.92$^\dagger$$^\ddagger$ & 1.00 \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,11 +1,14 @@
-"""Print per-dimension departure rates for the human baseline (Table 4 column).
+"""Print per-dimension departure rates for the human baseline.
 
 Usage (from the alienbench/ directory):
-    python human_dimension_rates.py [--config config.yaml]
+    python human_dimension_rates.py [--config config.yaml] [--emit-tex]
 
 Replicates the averaging logic in latex_tables._make_ward_dimensions_table:
   1. Average per-dimension scores across judges per generation.
   2. Average across generations.
+
+With ``--emit-tex``, also writes ``results/tab_human_dimensions.tex`` for
+direct \\input in Section 4.2 of the paper.
 """
 
 from __future__ import annotations
@@ -32,6 +35,21 @@ DIMENSIONS = [
     ("cognition",      "Cognitive Architecture"),
 ]
 
+# Compact labels matching the radar tick labels in `radar.py` so the
+# emitted LaTeX table aligns visually with Figure 1.
+_RADAR_LABELS = {
+    "symmetry":       "Symmetry",
+    "sensory_organs": "Sensing",
+    "locomotion":     "Locomotion",
+    "body_plan":      "Body plan",
+    "skin_covering":  "Covering",
+    "reproduction":   "Reproduction",
+    "metabolism":     "Metabolism",
+    "communication":  "Communication",
+    "habitat":        "Habitat",
+    "cognition":      "Cognition",
+}
+
 
 def _model_dir(model_id: str) -> str:
     return model_id.replace("/", "__")
@@ -51,6 +69,8 @@ def _load_config(config_path: Path) -> dict:
         stripped = line.strip()
         if stripped.startswith("data_dir:"):
             cfg["data_dir"] = stripped.split(":", 1)[1].strip().strip('"').strip("'")
+        if stripped.startswith("results_dir:"):
+            cfg["results_dir"] = stripped.split(":", 1)[1].strip().strip('"').strip("'")
         if stripped.startswith("judge_models:"):
             cfg["judge_models"] = []
     # collect judge_models list items
@@ -81,9 +101,59 @@ def _iter_jsonl(path: Path):
                     pass
 
 
+def _emit_human_tex(dim_rates: dict[str, float], n_gen: int, results_dir: Path) -> Path:
+    """Write a compact one-row LaTeX table of human-baseline departure rates.
+
+    Output path: ``<results_dir>/tab_human_dimensions.tex``. Dimension labels
+    match the axes of ``fig:ward_radar`` so the table reads as a numeric
+    annotation of the radar's missing baseline shape.
+    """
+    results_dir.mkdir(parents=True, exist_ok=True)
+
+    headers = " & ".join(_RADAR_LABELS[d] for d, _ in DIMENSIONS)
+
+    def _cell(dim_id: str) -> str:
+        v = dim_rates.get(dim_id, float("nan"))
+        return "---" if np.isnan(v) else f"{v * 100:.1f}\\%"
+
+    cells = " & ".join(_cell(d) for d, _ in DIMENSIONS)
+
+    n_cols = len(DIMENSIONS)
+    col_spec = "l" + "c" * n_cols
+    lines = [
+        "\\begin{table}[htb]",
+        "  \\centering",
+        "  \\caption{Human baseline Ward feature departure rate (\\%) per dimension, "
+        f"computed from the $N{{=}}{n_gen}$ Prolific generations after averaging across "
+        "judges per generation and then across generations. Dimension labels match the "
+        "axes of \\autoref{fig:ward_radar}.}",
+        "  \\small",
+        "  \\label{tab:human_dimensions}",
+        "  \\resizebox{\\textwidth}{!}{%",
+        f"  \\begin{{tabular}}{{{col_spec}}}",
+        "    \\toprule",
+        f"    & {headers} \\\\",
+        "    \\midrule",
+        f"    Human & {cells} \\\\",
+        "    \\bottomrule",
+        "  \\end{tabular}",
+        "  }",
+        "\\end{table}",
+        "",
+    ]
+    out_path = results_dir / "tab_human_dimensions.tex"
+    out_path.write_text("\n".join(lines))
+    return out_path
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="config.yaml")
+    parser.add_argument(
+        "--emit-tex",
+        action="store_true",
+        help="Also write results/tab_human_dimensions.tex for paper Section 4.2.",
+    )
     args = parser.parse_args()
 
     config_path = Path(args.config)
@@ -160,6 +230,11 @@ def main() -> None:
     print("-" * 40)
     overall = np.nanmean(list(dim_rates.values()))
     print(f"{'Mean Ward score (0–10)':<30}  {overall * 10:5.2f}")
+
+    if args.emit_tex:
+        results_dir = Path(cfg.get("results_dir", "results"))
+        out_path = _emit_human_tex(dim_rates, n_gen, results_dir)
+        print(f"\nWrote {out_path}")
 
 
 if __name__ == "__main__":

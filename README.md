@@ -105,26 +105,14 @@ The `judge_models` aliases serve as panel keys (used in path names and dataframe
 ### Sample count
 
 ```yaml
-samples_per_condition: 50
+samples_per_condition: 30
 ```
 
-Number of creature descriptions generated per model per prompt variant. 50 is recommended for distributional analysis; use 3–5 for a quick smoke test.
+Canonical number of creature descriptions per (subject model, prompt variant) cell. Every pipeline stage (generate, extract, score, analyze, human) clips to the first `samples_per_condition` records, ordered ascending by `sample_index`. Use 3–5 for a quick smoke test.
 
-#### Temporary cost cap
+If a previous run wrote records at a higher N (e.g. 50), those records remain on disk but are silently skipped by downstream stages once `samples_per_condition` is lowered. The parse-failure denominator in the analyze stage matches the current N, so failure rates are not misreported. Canonical implementation reference: `Config.samples_per_condition` in `alienbench/config.py`.
 
-```yaml
-samples_per_condition_cap: 30
-```
-
-Optional read-time filter that applies to every stage **after** generate (extract, score, analyze, human). When set, those stages consider only the first `samples_per_condition_cap` records per (subject_model, prompt_variant) cell, ordered ascending by `sample_index`. Generation files on disk are not rewritten; records for `sample_index >= cap` remain on disk and are silently skipped by downstream stages.
-
-Use this to reduce judge-call and human-annotation cost without re-running the (expensive) generate stage. Typical workflow:
-
-1. Run generate at the full `samples_per_condition: 50` to populate the on-disk dataset.
-2. Add `samples_per_condition_cap: 30` to operate on a subset for a draft pass through extract → score → analyze.
-3. Remove the cap line (or set it to `null`) before the final analysis so the full 50 samples per cell are scored. Already-scored records for sample_index < 30 are reused; only sample_index 30–49 are processed afresh.
-
-The Pydantic config validator rejects `cap > samples_per_condition`. The parse-failure denominator in the analyze stage uses the cap when set, so failure rates are not misreported. Canonical implementation reference: `Config.samples_per_condition_cap` in `alienbench/config.py`.
+The Prompt Paraphrase Sensitivity ablation uses a smaller per-cell N controlled by `prompt_ablation_samples_per_condition` (default 10), because each paraphrase requires a full generate+extract+score pass over every (subject model, judge) cell.
 
 ### Prompt variants
 
@@ -242,7 +230,7 @@ python3 -m alienbench run --config test_config.yaml
 
 ## Ablation studies
 
-Three ablations accompany the primary analysis and are documented in §5 of the paper. They are supplementary to the main pipeline and run through a dedicated `ablation` subcommand.
+Three ablations accompany the primary analysis and are documented in §4 of the paper. They are supplementary to the main pipeline and run through a dedicated `ablation` subcommand.
 
 ```bash
 python3 -m alienbench ablation prompt

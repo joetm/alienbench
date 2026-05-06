@@ -141,10 +141,6 @@ def fig_ward_radar_small_multiples(ward_df: pd.DataFrame, results_dir: Path) -> 
     for ax in axes[len(order):]:
         ax.set_visible(False)
 
-    fig.suptitle(
-        "Ward feature departure rate by model",
-        fontsize=11, y=1.0,
-    )
     fig.tight_layout()
     _save_figure(fig, results_dir / "fig5_ward_radar.pdf")
     plt.close(fig)
@@ -174,7 +170,6 @@ def fig_ward_radar_overlay(ward_df: pd.DataFrame, results_dir: Path) -> None:
         ax.fill(theta, values, color=color, alpha=0.08)
 
     _style_polar_axis(ax, theta, labels)
-    ax.set_title("Ward feature departure rate by model", fontsize=11, pad=18)
     ax.legend(
         loc="upper right",
         bbox_to_anchor=(1.35, 1.05),

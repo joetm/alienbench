@@ -90,19 +90,40 @@ judge_overrides:
 # the Ward primary metric.
 primary_metric: ward
 
-# Number of samples per model per prompt variant
-samples_per_condition: 50
+# Canonical per-cell sample count. Every pipeline stage
+# (generate / extract / score / analyze / human) clips to the first
+# `samples_per_condition` records per (subject_model, prompt_variant)
+# cell, ordered ascending by `sample_index`. On-disk records above this
+# N (e.g. from an earlier run at a higher N) remain on disk but are
+# silently skipped by downstream stages.
+samples_per_condition: 30
 
-# TEMPORARY cost cap. When set, every stage AFTER generate operates on
-# only the first N samples per (model, prompt_variant) cell, ordered by
-# `sample_index`. Generation files on disk are not rewritten; the cap is
-# a read-time filter. Remove this line (or set to null) to restore full
-# samples_per_condition coverage. Set back to 50 before final analysis.
-samples_per_condition_cap: 30
+# Per-cell sample count used only by the Prompt Paraphrase Sensitivity
+# ablation (alienbench/ablation_prompt.py). Set lower than
+# samples_per_condition because each paraphrase requires a full
+# generate+extract+score pass over every (subject_model, judge) cell, and the
+# ablation trades per-cell precision for breadth across paraphrases. The
+# baseline paraphrase reuses main-pipeline data via the shared on-disk paths
+# and therefore inherits the main-pipeline N at that cell only.
+prompt_ablation_samples_per_condition: 10
 
 # Generation parameters
 temperature: 1.0
 max_tokens: 800
+
+# Per-subject-model overrides for generation parameters. The default
+# ``max_tokens=800`` covers every non-thinking subject. Thinking models
+# whose hidden-reasoning tokens count against ``max_tokens`` (the
+# OpenRouter ``reasoning.exclude`` and ``reasoning.effort`` flags do not
+# reduce that consumption for Gemini 3.1 Pro Preview at submission time)
+# need a larger budget so the response can finish after the model's
+# private deliberation is done. The probe in ``dev/probe_gemini_reasoning.py``
+# observed ~1.1k reasoning tokens for a single baseline call; 4000 leaves
+# room for variation across samples and prompt variants while keeping the
+# per-call cost bounded.
+model_overrides:
+  google/gemini-3.1-pro-preview:
+    max_tokens: 4000
 
 # Prompt variants
 prompt_variants:

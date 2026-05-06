@@ -133,15 +133,15 @@ def sample(
                     "No generations for %s / %s; skipping stratum", model, variant.id
                 )
                 continue
-            # Honour the optional cost-cap from
-            # ``Config.samples_per_condition_cap`` (canonical doc in
-            # config.py). When set, the stratified human sample is
-            # drawn only from the first ``cap`` generations per cell so
-            # human-annotation cost stays in step with judge cost.
+            # Clip to the canonical per-cell N (``samples_per_condition``,
+            # canonical doc in config.py). The stratified human sample is
+            # drawn only from the first ``samples_per_condition``
+            # generations per cell so human-annotation cost matches the
+            # judge cost on the same on-disk window.
             records = [
                 r
                 for r in iter_generations(
-                    data_dir, model, variant.id, cap=cfg.samples_per_condition_cap
+                    data_dir, model, variant.id, cap=cfg.samples_per_condition
                 )
                 if r.get("id") and r.get("response")
             ]

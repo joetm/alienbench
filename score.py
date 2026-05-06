@@ -49,19 +49,17 @@ def run(
         for model in models_to_process:
             for variant in cfg.prompt_variants:
                 extractions = list(iter_extractions(data_dir, judge, model, variant.id))
-                # Apply the optional cost-cap from
-                # ``Config.samples_per_condition_cap`` (canonical doc in
-                # config.py). Extraction records carry no sample_index
-                # field, so we resolve the allowed set via the
+                # Clip to the canonical per-cell N (``samples_per_condition``,
+                # canonical doc in config.py). Extraction records carry no
+                # sample_index field, so we resolve the allowed set via the
                 # generations JSONL and filter by ``generation_id``.
-                # Extractions on disk for sample_index >= cap (e.g.
-                # from a previous uncapped run) are silently skipped,
-                # not deleted; they reactivate if the cap is removed.
-                if cfg.samples_per_condition_cap is not None:
-                    allowed = allowed_generation_ids(
-                        data_dir, model, variant.id, cfg.samples_per_condition_cap
-                    )
-                    extractions = [e for e in extractions if e["generation_id"] in allowed]
+                # Extractions on disk whose sample_index falls outside the
+                # current N (e.g. from an earlier run at a higher N) are
+                # silently skipped, not deleted.
+                allowed = allowed_generation_ids(
+                    data_dir, model, variant.id, cfg.samples_per_condition
+                )
+                extractions = [e for e in extractions if e["generation_id"] in allowed]
                 if not extractions:
                     continue
 
