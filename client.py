@@ -138,6 +138,14 @@ class OpenRouterClient:
                     f"id={getattr(result, 'id', '')!r}"
                 )
             content = getattr(choices[0].message, "content", None) or ""
+            if not content.strip():
+                # An empty 200 would otherwise be written to the JSONL
+                # with response="" and the sample marked complete. Raise
+                # so the stage's try/except defers it to the next run.
+                raise MalformedOpenRouterResponse(
+                    f"OpenRouter returned empty content for {model!r}; "
+                    f"id={getattr(result, 'id', '')!r}"
+                )
             return Response(
                 text=content,
                 model=result.model,

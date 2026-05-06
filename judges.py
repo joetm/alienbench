@@ -24,6 +24,10 @@ from alienbench.config import Config, JudgeOverride
 logger = logging.getLogger(__name__)
 
 
+class EmptyJudgeResponse(RuntimeError):
+    """A judge returned a 200 with no usable text content."""
+
+
 class _Drop400BadRequest(logging.Filter):
     """Drop httpx INFO records that report a 400 Bad Request."""
 
@@ -157,6 +161,11 @@ class _AnthropicJudge:
         text = "".join(
             block.text for block in r.content if getattr(block, "type", "") == "text"
         )
+        if not text.strip():
+            raise EmptyJudgeResponse(
+                f"Anthropic judge {self._model_id!r} returned no text content; "
+                f"id={getattr(r, 'id', '') or ''!r}"
+            )
         usage = getattr(r, "usage", None)
         return Response(
             text=text,
@@ -253,8 +262,14 @@ class _OpenAIJudge:
                 temperature=temperature,
                 max_completion_tokens=max_tokens,
             )
+            text = r.choices[0].message.content or ""
+            if not text.strip():
+                raise EmptyJudgeResponse(
+                    f"OpenAI judge {self._model_id!r} returned empty content; "
+                    f"id={getattr(r, 'id', '') or ''!r}"
+                )
             return Response(
-                text=r.choices[0].message.content or "",
+                text=text,
                 model=r.model,
                 prompt_tokens=r.usage.prompt_tokens if r.usage else 0,
                 completion_tokens=r.usage.completion_tokens if r.usage else 0,
@@ -361,9 +376,15 @@ class _GoogleJudge:
                     )
                 else:
                     raise
+            text = r.text or ""
+            if not text.strip():
+                raise EmptyJudgeResponse(
+                    f"Google judge {self._model_id!r} returned empty content; "
+                    f"id={getattr(r, 'response_id', '') or ''!r}"
+                )
             usage = getattr(r, "usage_metadata", None)
             return Response(
-                text=r.text or "",
+                text=text,
                 model=getattr(r, "model_version", "") or self._model_id,
                 prompt_tokens=getattr(usage, "prompt_token_count", 0) or 0 if usage else 0,
                 completion_tokens=getattr(usage, "candidates_token_count", 0) or 0 if usage else 0,
