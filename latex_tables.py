@@ -325,7 +325,7 @@ def _make_ward_dimensions_table(ward_df: pd.DataFrame, cfg) -> str:
         "  \\centering",
         "  \\caption{Ward feature departure rates (\\%) per dimension and model, "
         "averaged across all prompt conditions and judges. "
-        "Bold marks the higher departure rate per dimension.}",
+        "Bold marks the highest departure rate per dimension.}",
         "  \\small",
         "  \\label{tab:ward_dimensions}",
         f"  \\begin{{tabular}}{{{col_spec}}}",

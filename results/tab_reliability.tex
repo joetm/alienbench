@@ -1,24 +1,25 @@
-\begin{table}[htbp]
+\begin{table}[!htbp]
   \centering
-  \caption{Inter-rater reliability (Krippendorff's $\alpha$) between LLM judges across all generations. Ward Total uses interval-level $\alpha$; individual dimensions use nominal-level $\alpha$ (binary scores). Bands follow Landis \& Koch (1977): Poor ($<$0.20), Fair (0.20--0.40), Moderate (0.40--0.60), Good (0.60--0.80), Excellent ($\geq$0.80).}
+  \caption{Inter-rater reliability (Krippendorff's nominal-level $\alpha$, binary scores) between LLM judges across all generations, by Ward dimension. Bands follow Landis \& Koch (1977): Poor ($<$0.20), Fair (0.20--0.40), Moderate (0.40--0.60), Good (0.60--0.80), Excellent ($\geq$0.80).
+  	The Ward composite $\alpha$ is reported in Section~\ref{sec:judge-reliability}.}
   \small
   \label{tab:reliability_full}
-  \begin{tabular}{lcc}
+  \begin{tabular}{lcclcc}
     \toprule
-    Measure & $\alpha$ & Interpretation \\
+    Measure & $\alpha$ & Interpretation & Measure & $\alpha$ & Interpretation \\
     \midrule
-    Ward Total (0--10) & 0.919 & Excellent \\
-    \midrule
-    Body Symmetry & 0.886 & Excellent \\
-    Sensory Organs & 0.642 & Good \\
-    Locomotion & 0.902 & Excellent \\
-    Body Plan & 0.853 & Excellent \\
-    Skin / Body Covering & 0.649 & Good \\
-    Reproduction & 0.929 & Excellent \\
-    Metabolism / Energy Source & 0.778 & Good \\
-    Communication & 0.698 & Good \\
-    Habitat & 0.758 & Good \\
-    Cognitive Architecture & 0.847 & Excellent \\
+%    Ward Total (0--10) & 0.919 & Excellent \\
+%    \midrule
+    Body Symmetry & 0.886 & Excellent &
+    	Sensory Organs & 0.642 & Good \\
+    Locomotion & 0.902 & Excellent &
+	    Body Plan & 0.853 & Excellent \\
+    Skin / Body Covering & 0.649 & Good &
+	    Reproduction & 0.929 & Excellent \\
+    Metabolism / Energy Source & 0.778 & Good &
+	    Communication & 0.698 & Good \\
+    Habitat & 0.758 & Good &
+	    Cognitive Architecture & 0.847 & Excellent \\
     \bottomrule
   \end{tabular}
 \end{table}

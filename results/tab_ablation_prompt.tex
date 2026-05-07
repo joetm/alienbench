@@ -2,6 +2,7 @@
 \centering
 \caption{Prompt paraphrase sensitivity. Top: per-model mean Ward Departure Score (0--10) under each surface rewording of the baseline prompt. Bottom: pairwise Spearman rank correlation $\rho$ of per-model means across paraphrases. High off-diagonal $\rho$ indicates that the paraphrase wording does not change the induced model ranking, but $\rho$ is invariant to uniform shifts in score and does not characterize absolute-score stability. An empirical null built by permuting model labels (10,000 draws) gives off-diagonal $95\%$ upper bounds in $[0.62,\ 0.65]$; cells marked $^\dagger$ exceed their null $95\%$ upper bound. Pairwise mean absolute difference of per-model Ward means across paraphrases lies in $[0.63,\ 2.52]$ points (on the 0--10 Ward scale), indicating the absolute-score shift that $\rho$ does not capture. Cells marked $^\ddagger$ satisfy the preregistered stability bars $\rho \geq 0.90$ and $\mathrm{MAD} \leq 1.00$ Ward points jointly; 2/30 off-diagonal pairs clear both bars.}
 \label{tab:ablation_prompt}
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{lcccccc}
 \toprule
 Model & Baseline & Paraphrase A & Paraphrase B & Paraphrase C & Paraphrase D & Paraphrase E \\
@@ -27,4 +28,5 @@ Paraphrase D & 0.85$^\dagger$ & 0.93$^\dagger$ & 0.86$^\dagger$ & 0.89$^\dagger$
 Paraphrase E & 0.87$^\dagger$ & 0.85$^\dagger$ & 0.89$^\dagger$ & 0.78$^\dagger$ & 0.92$^\dagger$$^\ddagger$ & 1.00 \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
