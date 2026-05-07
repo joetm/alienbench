@@ -1199,5 +1199,309 @@
       "krippendorff": "0.8.2",
       "tqdm": "4.67.3"
     }
+  },
+  {
+    "stage": "analyze",
+    "timestamp_utc": "2026-05-06T19:01:40Z",
+    "config_hash": "a38e03117c4fc49be7d1938f0298800241fc212eb7e1254da653ab4e00876619",
+    "config": {
+      "models": [
+        "anthropic/claude-opus-4.7",
+        "openai/gpt-5.4",
+        "google/gemini-3.1-pro-preview",
+        "deepseek/deepseek-v3.2",
+        "meta-llama/llama-4-maverick",
+        "qwen/qwen3-235b-a22b",
+        "mistralai/mistral-large-2411",
+        "meta-llama/llama-3.1-8b-instruct",
+        "qwen/qwen3-8b",
+        "mistralai/ministral-14b-2512"
+      ],
+      "judge_models": [
+        "anthropic/claude-opus-4.6",
+        "google/gemini-3.1-pro-preview",
+        "openai/gpt-5.4"
+      ],
+      "prompt_variants": [
+        {
+          "id": "baseline",
+          "label": "Baseline",
+          "text": "Imagine a creature that lives on an alien planet. Describe it in detail."
+        },
+        {
+          "id": "departure_primed",
+          "label": "Departure-primed",
+          "text": "Imagine a creature on an alien planet that is as different from any Earth creature as possible. Describe it in detail."
+        },
+        {
+          "id": "constrained_no_light",
+          "label": "Constrained: No Light",
+          "text": "Imagine a creature that lives on a planet with no light at all. Describe it in detail."
+        },
+        {
+          "id": "constrained_high_gravity",
+          "label": "Constrained: High Gravity",
+          "text": "Imagine a creature that lives on a planet with 10x Earth's gravity. Describe it in detail."
+        },
+        {
+          "id": "constrained_ammonia",
+          "label": "Constrained: Ammonia Oceans",
+          "text": "Imagine a creature that lives on a planet with oceans of liquid ammonia instead of water. Describe it in detail."
+        },
+        {
+          "id": "detailed_description",
+          "label": "Detailed description",
+          "text": "Imagine a creature on an alien planet. Describe it in full detail, including any aspects of its biology that would help someone understand what kind of organism it is."
+        }
+      ],
+      "prompt_paraphrases": [
+        {
+          "id": "baseline",
+          "label": "Baseline",
+          "text": "Imagine a creature that lives on an alien planet. Describe it in detail."
+        },
+        {
+          "id": "baseline_para_a",
+          "label": "Paraphrase A",
+          "text": "Picture an organism that lives on a planet other than Earth. Write a detailed description of it."
+        },
+        {
+          "id": "baseline_para_b",
+          "label": "Paraphrase B",
+          "text": "Describe, in detail, a creature that lives on another planet."
+        },
+        {
+          "id": "baseline_para_c",
+          "label": "Paraphrase C",
+          "text": "Imagine a living being that evolved on a planet other than Earth. Describe it in detail."
+        },
+        {
+          "id": "baseline_para_d",
+          "label": "Paraphrase D",
+          "text": "Think of a creature that comes from an alien planet. Describe what it looks like and how it lives in detail."
+        },
+        {
+          "id": "baseline_para_e",
+          "label": "Paraphrase E",
+          "text": "Envision a creature found on an alien world. Provide a detailed description of it."
+        }
+      ],
+      "samples_per_condition": 30,
+      "prompt_ablation_samples_per_condition": 10,
+      "temperature": 1.0,
+      "max_tokens": 800,
+      "data_dir": "/home/joppenla/RESEARCH/Papers/1-InProgress/AlienBench/alienbench/data",
+      "results_dir": "/home/joppenla/RESEARCH/Papers/1-InProgress/AlienBench/alienbench/results",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "openrouter_base_url": "https://openrouter.ai/api/v1",
+      "allowed_providers": null,
+      "allow_provider_fallbacks": false,
+      "judge_overrides": {
+        "anthropic/claude-opus-4.6": {
+          "provider": "anthropic",
+          "model_id": "claude-opus-4-6",
+          "api_key_env": null,
+          "use_vertex": false,
+          "vertex_project_env": "GOOGLE_VERTEX_PROJECT",
+          "vertex_location_env": "GOOGLE_VERTEX_LOCATION",
+          "bedrock_fallback": true,
+          "bedrock_model_id": "us.anthropic.claude-opus-4-6-v1",
+          "bedrock_region_env": "AWS_REGION"
+        },
+        "google/gemini-3.1-pro-preview": {
+          "provider": "google",
+          "model_id": "gemini-3.1-pro-preview",
+          "api_key_env": null,
+          "use_vertex": true,
+          "vertex_project_env": "GOOGLE_VERTEX_PROJECT",
+          "vertex_location_env": "GOOGLE_VERTEX_LOCATION",
+          "bedrock_fallback": false,
+          "bedrock_model_id": null,
+          "bedrock_region_env": "AWS_REGION"
+        },
+        "openai/gpt-5.4": {
+          "provider": "openai",
+          "model_id": "gpt-5.4",
+          "api_key_env": null,
+          "use_vertex": false,
+          "vertex_project_env": "GOOGLE_VERTEX_PROJECT",
+          "vertex_location_env": "GOOGLE_VERTEX_LOCATION",
+          "bedrock_fallback": false,
+          "bedrock_model_id": null,
+          "bedrock_region_env": "AWS_REGION"
+        }
+      },
+      "model_overrides": {
+        "google/gemini-3.1-pro-preview": {
+          "max_tokens": 4000
+        }
+      },
+      "primary_metric": "ward"
+    },
+    "python_version": "3.12.3",
+    "platform": "Linux-6.8.0-110-generic-x86_64-with-glibc2.39",
+    "packages": {
+      "openai": "2.29.0",
+      "pydantic": "2.12.5",
+      "pyyaml": "6.0.3",
+      "pandas": "2.3.1",
+      "scipy": "1.16.0",
+      "matplotlib": "3.10.3",
+      "seaborn": "0.13.2",
+      "krippendorff": "0.8.2",
+      "tqdm": "4.67.3"
+    }
+  },
+  {
+    "stage": "latex",
+    "timestamp_utc": "2026-05-06T19:01:45Z",
+    "config_hash": "a38e03117c4fc49be7d1938f0298800241fc212eb7e1254da653ab4e00876619",
+    "config": {
+      "models": [
+        "anthropic/claude-opus-4.7",
+        "openai/gpt-5.4",
+        "google/gemini-3.1-pro-preview",
+        "deepseek/deepseek-v3.2",
+        "meta-llama/llama-4-maverick",
+        "qwen/qwen3-235b-a22b",
+        "mistralai/mistral-large-2411",
+        "meta-llama/llama-3.1-8b-instruct",
+        "qwen/qwen3-8b",
+        "mistralai/ministral-14b-2512"
+      ],
+      "judge_models": [
+        "anthropic/claude-opus-4.6",
+        "google/gemini-3.1-pro-preview",
+        "openai/gpt-5.4"
+      ],
+      "prompt_variants": [
+        {
+          "id": "baseline",
+          "label": "Baseline",
+          "text": "Imagine a creature that lives on an alien planet. Describe it in detail."
+        },
+        {
+          "id": "departure_primed",
+          "label": "Departure-primed",
+          "text": "Imagine a creature on an alien planet that is as different from any Earth creature as possible. Describe it in detail."
+        },
+        {
+          "id": "constrained_no_light",
+          "label": "Constrained: No Light",
+          "text": "Imagine a creature that lives on a planet with no light at all. Describe it in detail."
+        },
+        {
+          "id": "constrained_high_gravity",
+          "label": "Constrained: High Gravity",
+          "text": "Imagine a creature that lives on a planet with 10x Earth's gravity. Describe it in detail."
+        },
+        {
+          "id": "constrained_ammonia",
+          "label": "Constrained: Ammonia Oceans",
+          "text": "Imagine a creature that lives on a planet with oceans of liquid ammonia instead of water. Describe it in detail."
+        },
+        {
+          "id": "detailed_description",
+          "label": "Detailed description",
+          "text": "Imagine a creature on an alien planet. Describe it in full detail, including any aspects of its biology that would help someone understand what kind of organism it is."
+        }
+      ],
+      "prompt_paraphrases": [
+        {
+          "id": "baseline",
+          "label": "Baseline",
+          "text": "Imagine a creature that lives on an alien planet. Describe it in detail."
+        },
+        {
+          "id": "baseline_para_a",
+          "label": "Paraphrase A",
+          "text": "Picture an organism that lives on a planet other than Earth. Write a detailed description of it."
+        },
+        {
+          "id": "baseline_para_b",
+          "label": "Paraphrase B",
+          "text": "Describe, in detail, a creature that lives on another planet."
+        },
+        {
+          "id": "baseline_para_c",
+          "label": "Paraphrase C",
+          "text": "Imagine a living being that evolved on a planet other than Earth. Describe it in detail."
+        },
+        {
+          "id": "baseline_para_d",
+          "label": "Paraphrase D",
+          "text": "Think of a creature that comes from an alien planet. Describe what it looks like and how it lives in detail."
+        },
+        {
+          "id": "baseline_para_e",
+          "label": "Paraphrase E",
+          "text": "Envision a creature found on an alien world. Provide a detailed description of it."
+        }
+      ],
+      "samples_per_condition": 30,
+      "prompt_ablation_samples_per_condition": 10,
+      "temperature": 1.0,
+      "max_tokens": 800,
+      "data_dir": "/home/joppenla/RESEARCH/Papers/1-InProgress/AlienBench/alienbench/data",
+      "results_dir": "/home/joppenla/RESEARCH/Papers/1-InProgress/AlienBench/alienbench/results",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "openrouter_base_url": "https://openrouter.ai/api/v1",
+      "allowed_providers": null,
+      "allow_provider_fallbacks": false,
+      "judge_overrides": {
+        "anthropic/claude-opus-4.6": {
+          "provider": "anthropic",
+          "model_id": "claude-opus-4-6",
+          "api_key_env": null,
+          "use_vertex": false,
+          "vertex_project_env": "GOOGLE_VERTEX_PROJECT",
+          "vertex_location_env": "GOOGLE_VERTEX_LOCATION",
+          "bedrock_fallback": true,
+          "bedrock_model_id": "us.anthropic.claude-opus-4-6-v1",
+          "bedrock_region_env": "AWS_REGION"
+        },
+        "google/gemini-3.1-pro-preview": {
+          "provider": "google",
+          "model_id": "gemini-3.1-pro-preview",
+          "api_key_env": null,
+          "use_vertex": true,
+          "vertex_project_env": "GOOGLE_VERTEX_PROJECT",
+          "vertex_location_env": "GOOGLE_VERTEX_LOCATION",
+          "bedrock_fallback": false,
+          "bedrock_model_id": null,
+          "bedrock_region_env": "AWS_REGION"
+        },
+        "openai/gpt-5.4": {
+          "provider": "openai",
+          "model_id": "gpt-5.4",
+          "api_key_env": null,
+          "use_vertex": false,
+          "vertex_project_env": "GOOGLE_VERTEX_PROJECT",
+          "vertex_location_env": "GOOGLE_VERTEX_LOCATION",
+          "bedrock_fallback": false,
+          "bedrock_model_id": null,
+          "bedrock_region_env": "AWS_REGION"
+        }
+      },
+      "model_overrides": {
+        "google/gemini-3.1-pro-preview": {
+          "max_tokens": 4000
+        }
+      },
+      "primary_metric": "ward"
+    },
+    "python_version": "3.12.3",
+    "platform": "Linux-6.8.0-110-generic-x86_64-with-glibc2.39",
+    "packages": {
+      "openai": "2.29.0",
+      "pydantic": "2.12.5",
+      "pyyaml": "6.0.3",
+      "pandas": "2.3.1",
+      "scipy": "1.16.0",
+      "matplotlib": "3.10.3",
+      "seaborn": "0.13.2",
+      "krippendorff": "0.8.2",
+      "tqdm": "4.67.3"
+    }
   }
 ]

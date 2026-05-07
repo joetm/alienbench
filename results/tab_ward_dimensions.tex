@@ -3,20 +3,22 @@
   \caption{Ward feature departure rates (\%) per dimension and model, averaged across all prompt conditions and judges. Bold marks the higher departure rate per dimension.}
   \small
   \label{tab:ward_dimensions}
-  \begin{tabular}{lcccccccccc}
+\resizebox{\textwidth}{!}{%
+  \begin{tabular}{lccccccccccc}
     \toprule
-    Dimension & claude-opus-4.7 & gpt-5.4 & gemini-3.1-pro-preview & deepseek-v3.2 & llama-4-maverick & qwen3-235b-a22b & mistral-large-2411 & llama-3.1-8b-instruct & qwen3-8b & ministral-14b-2512 \\
+    Dimension & \rotatebox{90}{Human baseline} & \rotatebox{90}{Claude Opus 4.7} & \rotatebox{90}{GPT 5.4} & \rotatebox{90}{Gemini 3.1 Pro Preview} & \rotatebox{90}{DeepSeek v3.2} & \rotatebox{90}{Llama 4 maverick} & \rotatebox{90}{Qwen 3 235b a22b} & \rotatebox{90}{Mistral Large 2411} & \rotatebox{90}{Llama 3.1 8b Instruct} & \rotatebox{90}{Qwen3 8b} & \rotatebox{90}{Ministral 14b 2512} \\
     \midrule
-    Body Symmetry & 49.3\% & 28.5\% & 30.2\% & \textbf{55.7\%} & 44.3\% & 43.3\% & 20.2\% & 41.9\% & 36.1\% & 51.5\% \\
-    Sensory Organs & 80.2\% & 82.0\% & \textbf{98.5\%} & 92.0\% & 73.9\% & 80.4\% & 53.0\% & 70.9\% & 80.2\% & 79.1\% \\
-    Locomotion & 50.0\% & 35.2\% & 50.9\% & 63.1\% & 67.8\% & 61.5\% & 41.9\% & 65.6\% & 67.0\% & \textbf{78.9\%} \\
-    Body Plan & 73.0\% & 47.0\% & 73.1\% & \textbf{76.9\%} & 72.0\% & 50.0\% & 35.0\% & 64.1\% & 55.4\% & 72.8\% \\
-    Skin / Body Covering & 50.7\% & 52.2\% & \textbf{76.7\%} & 68.3\% & 62.2\% & 58.9\% & 28.1\% & 58.3\% & 74.3\% & 76.1\% \\
-    Reproduction & 33.3\% & 12.6\% & 33.3\% & \textbf{56.1\%} & 26.9\% & 44.8\% & 46.5\% & 25.4\% & 45.0\% & 26.7\% \\
-    Metabolism / Energy Source & 46.9\% & 35.7\% & 36.1\% & 70.2\% & 45.4\% & 64.3\% & 25.9\% & 43.9\% & \textbf{75.6\%} & 55.4\% \\
-    Communication & 21.5\% & 38.0\% & 33.3\% & 42.6\% & 39.4\% & \textbf{49.4\%} & 33.9\% & 45.4\% & 47.4\% & 32.6\% \\
-    Habitat & \textbf{23.9\%} & 7.8\% & 20.0\% & 18.5\% & 13.1\% & 10.9\% & 17.8\% & 13.5\% & 15.9\% & 19.4\% \\
-    Cognitive Architecture & 21.7\% & 18.1\% & 21.3\% & 32.0\% & 28.7\% & \textbf{33.0\%} & 8.0\% & 22.6\% & 20.6\% & 24.8\% \\
+    Body Symmetry & 15.7\% & 49.3\% & 28.5\% & 30.2\% & \textbf{55.7\%} & 44.3\% & 43.3\% & 20.2\% & 41.9\% & 36.1\% & 51.5\% \\
+    Sensory Organs & 47.7\% & 80.2\% & 82.0\% & \textbf{98.5\%} & 92.0\% & 73.9\% & 80.4\% & 53.0\% & 70.9\% & 80.2\% & 79.1\% \\
+    Locomotion & 27.0\% & 50.0\% & 35.2\% & 50.9\% & 63.1\% & 67.8\% & 61.5\% & 41.9\% & 65.6\% & 67.0\% & \textbf{78.9\%} \\
+    Body Plan & 28.0\% & 73.0\% & 47.0\% & 73.1\% & \textbf{76.9\%} & 72.0\% & 50.0\% & 35.0\% & 64.1\% & 55.4\% & 72.8\% \\
+    Skin/Body Covering & 22.7\% & 50.7\% & 52.2\% & \textbf{76.7\%} & 68.3\% & 62.2\% & 58.9\% & 28.1\% & 58.3\% & 74.3\% & 76.1\% \\
+    Reproduction & 6.0\% & 33.3\% & 12.6\% & 33.3\% & \textbf{56.1\%} & 26.9\% & 44.8\% & 46.5\% & 25.4\% & 45.0\% & 26.7\% \\
+    Metabolism/Energy Source & 24.3\% & 46.9\% & 35.7\% & 36.1\% & 70.2\% & 45.4\% & 64.3\% & 25.9\% & 43.9\% & \textbf{75.6\%} & 55.4\% \\
+    Communication & 6.7\% & 21.5\% & 38.0\% & 33.3\% & 42.6\% & 39.4\% & \textbf{49.4\%} & 33.9\% & 45.4\% & 47.4\% & 32.6\% \\
+    Habitat & 9.7\% & \textbf{23.9\%} & 7.8\% & 20.0\% & 18.5\% & 13.1\% & 10.9\% & 17.8\% & 13.5\% & 15.9\% & 19.4\% \\
+    Cognitive Architecture & 5.0\% & 21.7\% & 18.1\% & 21.3\% & 32.0\% & 28.7\% & \textbf{33.0\%} & 8.0\% & 22.6\% & 20.6\% & 24.8\% \\
     \bottomrule
   \end{tabular}
+}
 \end{table}

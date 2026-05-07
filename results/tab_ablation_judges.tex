@@ -1,0 +1,76 @@
+\begin{table}[t]
+\centering
+\caption{Judge panel composition. Panel A reports rank stability under a disjoint held-out reference: each subset $S$ of $k$ judges is compared against the aggregate of the complementary $n{-}k$ judges via Spearman $\rho$. Comparing $S$ against the full-panel aggregate would be self-referential because $k/n$ of the reference is the subset itself. The null $95\%$ upper bound is the $97.5$th percentile of $\rho$ under random relabeling of models ($B=10{,}000$); cells marked $\dag$ exceed this bound. Cells marked $\ddag$ clear the preregistered rank-stability bar $\rho_{\text{heldout}} \geq 0.9$. \textsc{nd} (not defined) marks $k=n$, where no disjoint reference exists. Panel B reports inter-rater reliability within the reduced panel via cross-model stratified Krippendorff $\alpha$ on Ward total. $\alpha$ requires at least two raters and is \textsc{nd} for $k=1$; the tentative-conclusions bar is $\alpha \geq 0.667$. The $\alpha$-drop column reports $\alpha_{\text{full}} - \alpha_{\text{reduced}}$, and $\ddag$ marks sub-panels that stay within the preregistered drop bar of $0.1$. The two axes measure different quantities (model-level rank stability vs.\ judge-level reliability) and are reported separately. Panel C reports same-family rank sensitivity: for each subject-judge pair that shares a provider family, the subject model's rank under the full three-judge panel is compared against its rank under the two-judge panel that excludes the same-family judge. A positive $\Delta$ (LOO$-$full) indicates the subject ranked lower when its same-family judge was removed, consistent with upward inflation by self-preference.}
+\label{tab:ablation_judges}
+\vspace{0.25em}
+\textbf{Panel A. Rank stability (disjoint held-out reference).}
+\vspace{0.25em}
+\begin{tabular}{lcccc}
+\toprule
+Subset & $n$ gens & $\rho_{\text{heldout}}$ & Null $95\%$ hi & Rank changes \\
+\midrule
+\multicolumn{5}{l}{\emph{Single judge ($k=1$)}} \\
+claude-opus-4.6 & 1800 & 0.88\dag & 0.65 & 6 \\
+gemini-3.1-pro-preview & 1800 & 0.94\dag\ddag & 0.65 & 7 \\
+gpt-5.4 & 1800 & 0.96\dag\ddag & 0.65 & 6 \\
+\midrule
+\multicolumn{5}{l}{\emph{Leave-one-judge-out ($k=n{-}1$)}} \\
+drop claude-opus-4.6 & 2 & 0.88\dag & 0.65 & 6 \\
+drop gemini-3.1-pro-preview & 2 & 0.94\dag\ddag & 0.64 & 7 \\
+drop gpt-5.4 & 2 & 0.96\dag\ddag & 0.64 & 6 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5em}
+
+\begin{tabular}{cccccc}
+\toprule
+$k$ & \#subsets & Mean $\rho_{\text{heldout}}$ & Min $\rho_{\text{heldout}}$ & Max null $95\%$ hi & \#above null \\
+\midrule
+1 & 3 & 0.93 & 0.88 & 0.65 & 3/3 \\
+2 & 3 & 0.93 & 0.88 & 0.65 & 3/3 \\
+3 & 1 & \textsc{nd} & \textsc{nd} & \textsc{nd} & \textsc{nd} \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.75em}
+\textbf{Panel B. Inter-rater reliability (within reduced panel).}
+\vspace{0.25em}
+
+\begin{tabular}{lccc}
+\toprule
+Subset & $n$ judges & $\alpha_{\text{cross-model}}$ & $\alpha_{\text{full}} - \alpha_{\text{reduced}}$ \\
+\midrule
+\multicolumn{4}{l}{\emph{Leave-one-judge-out}} \\
+drop claude-opus-4.6 & 2 & 0.94 & -0.03\ddag \\
+drop gemini-3.1-pro-preview & 2 & 0.92 & -0.01\ddag \\
+drop gpt-5.4 & 2 & 0.88 & 0.03\ddag \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5em}
+
+\begin{tabular}{cccccc}
+\toprule
+$k$ & \#subsets & Mean $\alpha$ & Min $\alpha$ & \#$\alpha \geq 0.667$ & \#drop $\leq 0.1$ \\
+\midrule
+1 & 3 & \textsc{nd} & \textsc{nd} & \textsc{nd} & \textsc{nd} \\
+2 & 3 & 0.91 & 0.88 & 3/3 & 3/3 \\
+3 & 1 & 0.91 & 0.91 & 1/1 & 1/1 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.75em}
+\textbf{Panel C. Same-family rank sensitivity.}
+\vspace{0.25em}
+
+\begin{tabular}{llccc}
+\toprule
+Excluded judge & Same-family subject & Rank (full) & Rank (LOO) & $\Delta$ (LOO$-$full) \\
+\midrule
+claude-opus-4.6 & claude-opus-4.7 & 8 & 7 & -1 \\
+gemini-3.1-pro-preview & gemini-3.1-pro-preview & 6 & 6 & 0 \\
+gpt-5.4 & gpt-5.4 & 9 & 9 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}

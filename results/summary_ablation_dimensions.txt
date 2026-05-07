@@ -1,0 +1,54 @@
+# Dimension Sensitivity
+
+## Full-score per-model means
+
+subject_model
+deepseek/deepseek-v3.2              5.756
+qwen/qwen3-8b                       5.174
+mistralai/ministral-14b-2512        5.172
+qwen/qwen3-235b-a22b                4.965
+meta-llama/llama-4-maverick         4.737
+google/gemini-3.1-pro-preview       4.735
+meta-llama/llama-3.1-8b-instruct    4.515
+anthropic/claude-opus-4.7           4.504
+openai/gpt-5.4                      3.572
+mistralai/mistral-large-2411        3.102
+
+## Leave-one-out (sorted by departure rate)
+
+dropped_dimension  departure_rate  spearman_rho  null_rho_mean  null_rho_lo95  null_rho_hi95  rho_above_null_hi95  mad_vs_full  rank_changes  rank_preserved
+   sensory_organs           0.790         0.976         -0.005         -0.648          0.648                 True        0.790             4           False
+        body_plan           0.619         0.988         -0.005         -0.636          0.648                 True        0.619             2           False
+    skin_covering           0.606         0.964         -0.005         -0.636          0.636                 True        0.606             3           False
+       locomotion           0.582         0.976         -0.005         -0.648          0.636                 True        0.582             4           False
+       metabolism           0.499         0.952         -0.005         -0.636          0.648                 True        0.499             5           False
+         symmetry           0.401         0.988         -0.005         -0.636          0.636                 True        0.401             2           False
+    communication           0.384         0.964         -0.006         -0.648          0.636                 True        0.384             6           False
+     reproduction           0.351         0.988         -0.005         -0.648          0.648                 True        0.351             2           False
+        cognition           0.231         0.988         -0.005         -0.636          0.636                 True        0.231             2           False
+          habitat           0.161         1.000         -0.005         -0.648          0.648                 True        0.161             0            True
+
+LOO note: raw ρ is inflated because the reduced score is a strict subset of the full score. The meaningful comparison is whether ρ exceeds the permutation null 95% upper bound (column ``null_rho_hi95``); MAD reports the absolute-score loss on the 0--10 Ward scale, which ρ is invariant to.
+
+## Subset-size summary (preregistered thresholds: ρ ≥ 0.9, τ ≥ 0.8)
+
+ k  n_subsets  best_rho  best_tau  min_mad  n_rho_above_thresh  n_tau_above_thresh
+ 1         10     0.891     0.733    3.833                   0                   0
+ 2         45     0.976     0.911    3.214                   5                   2
+ 3        120     1.000     1.000    2.608                  40                  27
+ 4        210     0.988     0.956    2.026                  98                  73
+ 5        252     1.000     1.000    1.527                 152                 123
+ 6        210     1.000     1.000    1.126                 145                 130
+ 7        120     1.000     1.000    0.742                  93                  87
+ 8         45     1.000     1.000    0.392                  41                  38
+ 9         10     1.000     1.000    0.161                  10                  10
+10          1     1.000     1.000    0.000                   1                   1
+
+Observed min-k (best ρ ≥ 0.9): 2
+Observed min-k (best τ ≥ 0.8): 2
+
+## Permutation null on min-k (B=1000, seed=1)
+
+Under H0 (reduced rankings independent of full), min-k is inflated by the multiple-comparisons burden of C(10, k) subsets per size.
+Null min-k (ρ): 5th percentile = 3.0, median = 11.0; p(null min-k ≤ observed) = 0.026
+Null min-k (τ): 5th percentile = 4.0, median = 11.0; p(null min-k ≤ observed) = 0.009

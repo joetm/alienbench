@@ -1,0 +1,4 @@
+judge_model,n_generations,rho_vs_full,rho_vs_heldout,null_rho_mean,null_rho_lo95,null_rho_hi95,rho_above_null_hi95,rho_heldout_above_stable_bar,rank_changes_vs_heldout,rank_preserved_vs_heldout,alpha_cross_model,alpha_drop_from_full,alpha_drop_within_bar
+anthropic/claude-opus-4.6,1800,0.9272727272727272,0.8787878787878788,-0.0054775757575757575,-0.6363636363636362,0.6484848484848483,True,False,6,False,,,False
+google/gemini-3.1-pro-preview,1800,0.9515151515151514,0.9393939393939393,-0.004151515151515152,-0.6363636363636362,0.6484848484848483,True,True,7,False,,,False
+openai/gpt-5.4,1800,0.9757575757575757,0.9636363636363635,-0.004947878787878787,-0.6484848484848483,0.6484848484848483,True,True,6,False,,,False

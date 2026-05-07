@@ -1,0 +1,4 @@
+k,n_subsets,mean_rho_vs_full,mean_rho_vs_heldout,min_rho_vs_heldout,max_null_rho_hi95,n_rank_preserving_heldout,n_rho_above_null_hi95,n_rho_heldout_above_stable_bar,mean_alpha_cross_model,min_alpha_cross_model,n_alpha_above_tentative,mean_alpha_drop_from_full,max_alpha_drop_from_full,n_alpha_drop_within_bar
+1,3,0.9515151515151515,0.9272727272727272,0.8787878787878788,0.6484848484848483,0,3,2,,,-1,,,-1
+2,3,0.9838383838383837,0.9272727272727272,0.8787878787878788,0.6484848484848483,0,3,2,0.9103991184953323,0.8750864202742247,3,-0.0013138413630146746,0.03399885685809301,3
+3,1,0.9999999999999999,,,,-1,-1,-1,0.9090852771323177,0.9090852771323177,1,0.0,0.0,1

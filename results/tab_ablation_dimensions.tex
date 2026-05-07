@@ -1,0 +1,42 @@
+\begin{table}[t]
+\centering
+\caption{Dimension sensitivity. Top: leave-one-out per-dimension effect on rank and score. ``Departure rate'' is the per-dimension share of generations coded as departing from the Earth-typical default; $\rho$ is the Spearman rank correlation between the nine-dimension per-model mean and the full ten-dimension per-model mean. Because the reduced score is a strict subset of the full score, raw $\rho$ is inflated; ``$\rho$ null $95\%$ hi'' is the upper bound of a permutation null on the reduced score, and cells marked $^\dagger$ exceed it. MAD is the mean absolute difference between reduced and full per-model means (Ward points), capturing absolute-score loss that $\rho$ is invariant to. Bottom: continuous subset-search summary over all $\binom{10}{k}$ subsets. ``Best $\rho$'' / ``Best $\tau$'' are the maxima across size-$k$ subsets; ``Min MAD'' is the minimum absolute-score loss at size $k$. The continuous thresholds $\rho \geq 0.9$ and $\tau \geq 0.8$ are preregistered.}
+\label{tab:ablation_dimensions}
+\begin{tabular}{lcccc}
+\toprule
+Dropped dim & Departure rate & $\rho$ vs full & $\rho$ null $95\%$ hi & MAD \\
+\midrule
+sensory organs & 0.79 & 0.98$^\dagger$ & 0.65 & 0.79 \\
+body plan & 0.62 & 0.99$^\dagger$ & 0.65 & 0.62 \\
+skin covering & 0.61 & 0.96$^\dagger$ & 0.64 & 0.61 \\
+locomotion & 0.58 & 0.98$^\dagger$ & 0.64 & 0.58 \\
+metabolism & 0.50 & 0.95$^\dagger$ & 0.65 & 0.50 \\
+symmetry & 0.40 & 0.99$^\dagger$ & 0.64 & 0.40 \\
+communication & 0.38 & 0.96$^\dagger$ & 0.64 & 0.38 \\
+reproduction & 0.35 & 0.99$^\dagger$ & 0.65 & 0.35 \\
+cognition & 0.23 & 0.99$^\dagger$ & 0.64 & 0.23 \\
+habitat & 0.16 & 1.00$^\dagger$ & 0.65 & 0.16 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5em}
+
+\begin{tabular}{ccccc}
+\toprule
+$k$ & \#subsets & Best $\rho$ & Best $\tau$ & Min MAD \\
+\midrule
+1 & 10 & 0.89 & 0.73 & 3.83 \\
+2 & 45 & 0.98 & 0.91 & 3.21 \\
+3 & 120 & 1.00 & 1.00 & 2.61 \\
+4 & 210 & 0.99 & 0.96 & 2.03 \\
+5 & 252 & 1.00 & 1.00 & 1.53 \\
+6 & 210 & 1.00 & 1.00 & 1.13 \\
+7 & 120 & 1.00 & 1.00 & 0.74 \\
+8 & 45 & 1.00 & 1.00 & 0.39 \\
+9 & 10 & 1.00 & 1.00 & 0.16 \\
+10 & 1 & 1.00 & 1.00 & 0.00 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3em} \small $\rho \geq 0.9$: observed min $k=2$ null 5th percentile $k=3.0$ (example subset: \{skin covering, metabolism\}). $\tau \geq 0.8$: observed min $k=2$ null 5th percentile $k=4.0$ (example subset: \{skin covering, metabolism\}).
+\end{table}
