@@ -18,7 +18,9 @@ Nothing the benchmark needs lives outside this folder. The canonical invocation 
 python3 -m alienbench run
 ```
 
-`config.yaml` is found inside the package by default, and `data_dir` / `results_dir` resolve relative to the config file's directory, so outputs always land next to the config that produced them — regardless of the working directory.
+The script `alienbench/run.py` is an equivalent entry point for callers who prefer a script to a module invocation, and it runs from any working directory (see [Running the benchmark](#running-the-benchmark)).
+
+`config.yaml` is found inside the package by default, and `data_dir` / `results_dir` resolve relative to the config file's directory, so outputs always land next to the config that produced them, regardless of the working directory.
 
 ---
 
@@ -180,6 +182,31 @@ python3 -m alienbench run
 ```
 
 This chains the five stages (generate → extract → score → analyze → latex). All stages are **checkpointed**: re-running picks up where an interrupted run left off, so repeating `run` after a network failure is safe.
+
+### The `run.py` script
+
+`run.py` is an executable wrapper around the same CLI, provided for callers who prefer a script to a module invocation. It puts the directory containing the package on `sys.path` before delegating, so it works from any working directory and does not require `alienbench` to be on `PYTHONPATH` or installed:
+
+```bash
+python3 alienbench/run.py            # full pipeline, from the repository root
+python3 run.py                       # full pipeline, from inside alienbench/
+./run.py --config test_config.yaml   # smoke test
+```
+
+Called with no arguments, `run.py` executes the full pipeline, which is the `run` subcommand. All arguments are forwarded verbatim, so every subcommand and flag documented below is available through the script as well:
+
+```bash
+python3 alienbench/run.py run --from extract --to score
+python3 alienbench/run.py extract --human
+python3 alienbench/run.py ablation judges
+python3 alienbench/run.py human sample --seed 42
+```
+
+A leading option with no subcommand is treated as an option to `run`. `python3 alienbench/run.py --config test_config.yaml` is therefore equivalent to `python3 -m alienbench run --config test_config.yaml`.
+
+Interrupting the script with Ctrl-C exits with status 130. Because every stage is checkpointed, reissuing the same command resumes the run.
+
+Everything in the remainder of this section applies to both entry points. The examples use the `python3 -m alienbench` form.
 
 To start from or stop at a specific stage:
 
