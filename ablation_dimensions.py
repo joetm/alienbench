@@ -43,7 +43,7 @@ import scipy.stats as stats
 
 from alienbench.ablation_utils import RANK_ATOL, ranks_equal, spearman
 from alienbench.config import load_config
-from alienbench.dimensions import DIMENSION_IDS
+from alienbench.dimensions import DIMENSION_IDS, DIMENSION_LABELS
 from alienbench.paths import load_ward_scores
 
 logger = logging.getLogger(__name__)
@@ -386,22 +386,18 @@ def _minimum_subset_search(
 def _format_latex_table(
     loo: pd.DataFrame,
     size_summary: pd.DataFrame,
-    min_k_rho: int,
-    min_k_tau: int,
-    min_k_rho_null_p5: float,
-    min_k_tau_null_p5: float,
-    best_rho_example: tuple[str, ...] | None,
-    best_tau_example: tuple[str, ...] | None,
 ) -> str:
-    """Two-panel LaTeX table: LOO + null-adjusted subset search summary.
+    """Two-panel tabular: LOO + null-adjusted subset search summary.
+
+    The float, caption, and label are authored in ``paper.tex``. The observed
+    min-k, the null 5th percentiles, and the permutation p-values the caption
+    quotes are the ``\\abDim...`` macros of ``alienbench.paper``.
 
     The LOO panel reports raw ρ alongside the permutation null 95% upper
     bound; cells whose ρ exceeds the null bound are marked ``$^\\dagger$``
     and MAD is shown to quantify absolute-score loss. The subset-search
     panel uses continuous criteria (Spearman ρ, Kendall τ) rather than
-    exact rank preservation, and the caption reports the observed
-    min-k alongside the null 5th percentile of min-k under independent
-    reduced rankings.
+    exact rank preservation.
     """
     loo_sorted = loo.sort_values("departure_rate", ascending=False)
     loo_lines = []
@@ -420,7 +416,7 @@ def _format_latex_table(
         mad = row["mad_vs_full"]
         mad_str = f"{float(mad):.2f}" if pd.notna(mad) else "--"
         loo_lines.append(
-            f"{row['dropped_dimension'].replace('_', ' ')} & "
+            f"{DIMENSION_LABELS.get(row['dropped_dimension'], row['dropped_dimension'])} & "
             f"{row['departure_rate']:.2f} & {rho_str} & {hi_str} & {mad_str} \\\\"
         )
 
@@ -437,62 +433,10 @@ def _format_latex_table(
             f"{rho_s} & {tau_s} & {mad_s} \\\\"
         )
 
-    def _fmt_min_k(obs: int, null_p5: float, label_subset: tuple[str, ...] | None,
-                   threshold_name: str) -> str:
-        if obs < 0:
-            return (
-                f"No subset at any $k < 10$ reaches the "
-                f"{threshold_name} threshold."
-            )
-        null_str = (
-            f" null 5th percentile $k={null_p5:.1f}$"
-            if pd.notna(null_p5) else ""
-        )
-        if label_subset is not None:
-            ex = ", ".join(d.replace("_", " ") for d in label_subset)
-            return (
-                f"{threshold_name}: observed min $k={obs}$"
-                f"{null_str} (example subset: \\{{{ex}\\}})."
-            )
-        return f"{threshold_name}: observed min $k={obs}${null_str}."
-
-    min_rho_line = _fmt_min_k(
-        min_k_rho, min_k_rho_null_p5, best_rho_example,
-        f"$\\rho \\geq {RHO_THRESHOLD}$",
-    )
-    min_tau_line = _fmt_min_k(
-        min_k_tau, min_k_tau_null_p5, best_tau_example,
-        f"$\\tau \\geq {TAU_THRESHOLD}$",
-    )
-
-    caption = (
-        "Dimension sensitivity. Top: leave-one-out per-dimension effect "
-        "on rank and score. ``Departure rate'' is the per-dimension "
-        "share of generations coded as departing from the Earth-typical "
-        "default; $\\rho$ is the Spearman rank correlation between the "
-        "nine-dimension per-model mean and the full ten-dimension "
-        "per-model mean. Because the reduced score is a strict subset "
-        "of the full score, raw $\\rho$ is inflated; ``$\\rho$ null "
-        "$95\\%$ hi'' is the upper bound of a permutation null on the "
-        "reduced score, and cells marked $^\\dagger$ exceed it. MAD is "
-        "the mean absolute difference between reduced and full per-model "
-        "means (Ward points), capturing absolute-score loss that $\\rho$ "
-        "is invariant to. Bottom: continuous subset-search summary over "
-        "all $\\binom{10}{k}$ subsets. ``Best $\\rho$'' / ``Best "
-        "$\\tau$'' are the maxima across size-$k$ subsets; ``Min MAD'' "
-        "is the minimum absolute-score loss at size $k$. The continuous "
-        "thresholds $\\rho \\geq " f"{RHO_THRESHOLD}" "$ and $\\tau "
-        "\\geq " f"{TAU_THRESHOLD}" "$ are preregistered."
-    )
-
     return "\n".join([
-        "\\begin{table}[t]",
-        "\\centering",
-        f"\\caption{{{caption}}}",
-        "\\label{tab:ablation_dimensions}",
         "\\begin{tabular}{lcccc}",
         "\\toprule",
-        "Dropped dim & Departure rate & $\\rho$ vs full & $\\rho$ null $95\\%$ hi & MAD \\\\",
+        "Dropped feature & Departure rate & $\\rho$ vs full & $\\rho$ null $95\\%$ hi & MAD \\\\",
         "\\midrule",
         *loo_lines,
         "\\bottomrule",
@@ -507,9 +451,6 @@ def _format_latex_table(
         *size_lines,
         "\\bottomrule",
         "\\end{tabular}",
-        "",
-        f"\\vspace{{0.3em}} \\small {min_rho_line} {min_tau_line}",
-        "\\end{table}",
         "",
     ])
 
@@ -607,13 +548,7 @@ def run(config_path: str) -> None:
             len(rank_preserving), exact_min_k,
         )
 
-    best_rho_example = best_rho_by_k.get(min_k_rho) if min_k_rho > 0 else None
-    best_tau_example = best_tau_by_k.get(min_k_tau) if min_k_tau > 0 else None
-    tex = _format_latex_table(
-        loo, size_summary, min_k_rho, min_k_tau,
-        min_k_rho_null_p5, min_k_tau_null_p5,
-        best_rho_example, best_tau_example,
-    )
+    tex = _format_latex_table(loo, size_summary)
     (results_dir / "tab_ablation_dimensions.tex").write_text(tex)
     logger.info("Saved tab_ablation_dimensions.tex")
 

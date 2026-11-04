@@ -77,6 +77,13 @@ RHO_STABLE_THRESHOLD = 0.9
 MAD_STABLE_THRESHOLD = 1.0
 
 
+def _entry(identifier: str, info: dict) -> str | dict:
+    """A ``models`` / ``judge_models`` YAML entry: a bare id or a mapping."""
+    record = info.get(identifier)
+    fields = record.model_dump(exclude_defaults=True) if record is not None else {}
+    return fields if set(fields) - {"id"} else identifier
+
+
 def _materialize_paraphrase_config(cfg: Config, out_path: Path) -> Path:
     """Write a YAML that mirrors ``cfg`` with paraphrases as prompt_variants.
 
@@ -91,12 +98,15 @@ def _materialize_paraphrase_config(cfg: Config, out_path: Path) -> Path:
     # records are present for that cell.
     paraphrase_n = cfg.prompt_ablation_samples_per_condition
     data = {
-        "models": list(cfg.models),
-        "judge_models": list(cfg.judge_models),
+        # Full entries so per-model fields such as ``provider`` carry over.
+        "models": [_entry(m, cfg.model_info) for m in cfg.models],
+        "judge_models": [_entry(j, cfg.judge_info) for j in cfg.judge_models],
         "prompt_variants": [p.model_dump() for p in cfg.prompt_paraphrases],
         "samples_per_condition": paraphrase_n,
         "temperature": cfg.temperature,
         "max_tokens": cfg.max_tokens,
+        "max_tokens_ceiling": cfg.max_tokens_ceiling,
+        "model_overrides": {k: v.model_dump() for k, v in cfg.model_overrides.items()},
         "data_dir": cfg.data_dir,
         "results_dir": cfg.results_dir,
         "api_key_env": cfg.api_key_env,
@@ -257,16 +267,17 @@ def _format_latex_table(
     mad: pd.DataFrame | None = None,
     rho_stable_threshold: float = RHO_STABLE_THRESHOLD,
     mad_stable_threshold: float = MAD_STABLE_THRESHOLD,
+    model_names: dict[str, str] | None = None,
 ) -> str:
-    """Render the per-model means and the ρ matrix as a single LaTeX table.
+    """Render the per-model means and the ρ matrix as one tabular.
+
+    The float, caption, and label are authored in ``paper.tex``; the numbers
+    the caption quotes are the ``\\abPara...`` macros of ``alienbench.paper``.
+    ``model_names`` maps a model id to its display name (``Config.model_name``).
 
     When ``null_hi`` is provided, off-diagonal cells whose observed
-    ``rho`` exceeds the null 95% upper bound are marked with ``$^\\dagger$``
-    and the caption quotes the range of null upper bounds across
-    off-diagonal cells. When ``mad`` is provided, the caption also quotes
-    the off-diagonal range of the pairwise mean absolute difference of
-    per-model Ward means, which captures the absolute-score shift that
-    ρ is invariant to, and off-diagonal cells that jointly satisfy the
+    ``rho`` exceeds the null 95% upper bound are marked with ``$^\\dagger$``.
+    When ``mad`` is provided, off-diagonal cells that jointly satisfy the
     preregistered bars (``rho >= rho_stable_threshold`` AND
     ``mad <= mad_stable_threshold``) are marked with ``$^\\ddagger$``.
     """
@@ -275,11 +286,14 @@ def _format_latex_table(
 
     # Per-model means block
     mean_lines = []
-    for model, row in wide.iterrows():
+    # Rows follow the config order of ``model_names`` when it is given.
+    row_order = [m for m in (model_names or {}) if m in wide.index] or list(wide.index)
+    for model in row_order:
+        row = wide.loc[model]
         vals = " & ".join(
             f"{row[v]:.2f}" if pd.notna(row[v]) else "--" for v in variants
         )
-        mean_lines.append(f"{model} & {vals} \\\\")
+        mean_lines.append(f"{(model_names or {}).get(model, model)} & {vals} \\\\")
 
     # ρ matrix block; mark cells that exceed the null 95% upper bound
     # (\dagger) and cells that jointly satisfy the preregistered
@@ -311,65 +325,7 @@ def _format_latex_table(
     ncols = len(variants)
     col_spec = "l" + "c" * ncols
 
-    caption = (
-        "Prompt paraphrase sensitivity. Top: per-model mean Ward "
-        "Departure Score (0--10) under each surface rewording of the "
-        "baseline prompt. Bottom: pairwise Spearman rank correlation "
-        "$\\rho$ of per-model means across paraphrases. High off-diagonal "
-        "$\\rho$ indicates that the paraphrase wording does not change "
-        "the induced model ranking, but $\\rho$ is invariant to uniform "
-        "shifts in score and does not characterize absolute-score "
-        "stability."
-    )
-    if null_hi is not None:
-        off_diag_mask = ~np.eye(len(null_hi), dtype=bool)
-        off_diag_hi = null_hi.where(off_diag_mask).stack().astype(float)
-        if not off_diag_hi.empty:
-            caption += (
-                " An empirical null built by permuting model labels "
-                f"({N_PERMUTATIONS:,} draws) gives off-diagonal $95\\%$ "
-                f"upper bounds in $[{off_diag_hi.min():.2f},\\ "
-                f"{off_diag_hi.max():.2f}]$; cells marked "
-                "$^\\dagger$ exceed their null $95\\%$ upper bound."
-            )
-    if mad is not None:
-        off_diag_mask_m = ~np.eye(len(mad), dtype=bool)
-        off_diag_mad = mad.where(off_diag_mask_m).stack().astype(float)
-        if not off_diag_mad.empty:
-            caption += (
-                " Pairwise mean absolute difference of per-model Ward "
-                f"means across paraphrases lies in "
-                f"$[{off_diag_mad.min():.2f},\\ {off_diag_mad.max():.2f}]$ "
-                "points (on the 0--10 Ward scale), indicating the "
-                "absolute-score shift that $\\rho$ does not capture."
-            )
-
-    # Preregistered joint-bar caption clause.
-    if mad is not None:
-        off_mask = ~np.eye(len(rho), dtype=bool)
-        rho_vals = rho.where(off_mask).stack().astype(float)
-        mad_vals = mad.where(off_mask).stack().astype(float)
-        common_idx = rho_vals.index.intersection(mad_vals.index)
-        if len(common_idx) > 0:
-            both = (
-                (rho_vals.loc[common_idx] >= float(rho_stable_threshold))
-                & (mad_vals.loc[common_idx] <= float(mad_stable_threshold))
-            )
-            n_both = int(both.sum())
-            n_total = int(len(common_idx))
-            caption += (
-                f" Cells marked $^\\ddagger$ satisfy the preregistered "
-                f"stability bars $\\rho \\geq {rho_stable_threshold:.2f}$ "
-                f"and $\\mathrm{{MAD}} \\leq {mad_stable_threshold:.2f}$ "
-                f"Ward points jointly; {n_both}/{n_total} off-diagonal "
-                "pairs clear both bars."
-            )
-
     return "\n".join([
-        "\\begin{table}[t]",
-        "\\centering",
-        f"\\caption{{{caption}}}",
-        "\\label{tab:ablation_prompt}",
         f"\\begin{{tabular}}{{{col_spec}}}",
         "\\toprule",
         f"Model & {header_cols} \\\\",
@@ -381,14 +337,51 @@ def _format_latex_table(
         *rho_lines,
         "\\bottomrule",
         "\\end{tabular}",
-        "\\end{table}",
         "",
     ])
 
 
-def run(config_path: str) -> None:
+def _write_table(cfg, results_dir: Path, wide: pd.DataFrame, rho: pd.DataFrame,
+                 mad: pd.DataFrame, null_hi: pd.DataFrame) -> None:
+    labels = {p.id: p.display for p in cfg.prompt_paraphrases}
+    tex = _format_latex_table(
+        wide, rho, labels, null_hi=null_hi, mad=mad,
+        model_names={m: cfg.model_name(m) for m in cfg.models},
+    )
+    (results_dir / "tab_ablation_prompt.tex").write_text(tex)
+    logger.info("Saved tab_ablation_prompt.tex")
+
+
+def rerender_table(config_path: str) -> None:
+    """Rewrite ``tab_ablation_prompt.tex`` from the saved CSVs.
+
+    The ablation's generation stage calls provider APIs. This entry point
+    rebuilds only the table (for example after a change of model names in
+    ``config.yaml``) from the matrices a previous ``run`` wrote.
+    """
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     cfg = load_config(config_path)
+    results_dir = Path(cfg.results_dir)
+    wide = pd.read_csv(results_dir / "table_ablation_prompt.csv", index_col=0)
+    rho = pd.read_csv(results_dir / "table_ablation_prompt_corr.csv", index_col=0)
+    mad = pd.read_csv(results_dir / "table_ablation_prompt_mad.csv", index_col=0)
+    null = pd.read_csv(results_dir / "table_ablation_prompt_null.csv")
+    null_hi = null.pivot(index="pair_a", columns="pair_b", values="null_hi95").reindex(
+        index=wide.columns, columns=wide.columns)
+    _write_table(cfg, results_dir, wide, rho, mad, null_hi)
+
+
+def run(config_path: str, models: list[str] | None = None) -> None:
+    """Run the paraphrase ablation.
+
+    ``models`` restricts generation, extraction, and scoring of the
+    paraphrases to the listed ids, keys, or names (see
+    :meth:`Config.only_models`). The ablation tables always cover every
+    subject model in the config.
+    """
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    cfg = load_config(config_path)
+    pipeline_cfg = cfg.only_models(models) if models else cfg
 
     if len(cfg.prompt_paraphrases) < 2:
         raise ValueError(
@@ -403,7 +396,7 @@ def run(config_path: str) -> None:
     results_dir.mkdir(parents=True, exist_ok=True)
 
     shadow_path = results_dir / SHADOW_CONFIG_NAME
-    _materialize_paraphrase_config(cfg, shadow_path)
+    _materialize_paraphrase_config(pipeline_cfg, shadow_path)
     logger.info("Wrote shadow config: %s", shadow_path)
 
     from alienbench.generate import run as run_generate
@@ -481,10 +474,7 @@ def run(config_path: str) -> None:
     )
     logger.info("Saved table_ablation_prompt_null.csv")
 
-    labels = {p.id: p.label for p in cfg.prompt_paraphrases}
-    tex = _format_latex_table(wide, rho, labels, null_hi=null_hi, mad=mad)
-    (results_dir / "tab_ablation_prompt.tex").write_text(tex)
-    logger.info("Saved tab_ablation_prompt.tex")
+    _write_table(cfg, results_dir, wide, rho, mad, null_hi)
 
     # Standalone summary so we do not collide with analyze.run's summary.txt
     lines = ["# Prompt Paraphrase Sensitivity\n"]

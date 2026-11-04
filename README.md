@@ -4,7 +4,7 @@ A creativity benchmark for LLMs based on Ward's (1994) Structured Imagination ta
 
 - **Ward Departure Score (0–10)**: how many of 10 Earth-typical biological features the creature departs from (symmetry, locomotion, metabolism, etc.)
 
-Multiple judge models extract features independently, enabling inter-rater reliability analysis.
+Three judge models extract the features.
 
 ---
 
@@ -63,20 +63,15 @@ Everything is controlled by `config.yaml`. The key sections:
 
 ```yaml
 models:
-  # Tier A: Frontier flagships (full models; no mini / lite tiers)
-  - anthropic/claude-opus-4.7
-  - openai/gpt-5.4
-  - google/gemini-3.1-pro-preview
-  - deepseek/deepseek-v3.2
-  # Tier B: Other frontier open-weight
-  - meta-llama/llama-4-maverick
-  - qwen/qwen3-235b-a22b
-  - mistralai/mistral-large-2411
-  # Tier C: Smaller open-weight (~8B)
-  - meta-llama/llama-3.1-8b-instruct
-  - qwen/qwen3-8b
-  - mistralai/ministral-14b-2512
+  - id: anthropic/claude-opus-4.7         # OpenRouter id: the key for paths and dataframes
+    name: "Claude Opus 4.7"               # the name tables, figures, and the paper print
+    key: ClaudeOpus                       # letters only: stem of the paper's \ab... macros
+    resolved_version: anthropic/claude-4.7-opus-20260416   # dated snapshot, for the record
+  # ... one entry per subject model (Tier A frontier flagships, Tier B other
+  # frontier open-weight, Tier C smaller open-weight)
 ```
+
+A bare id (`- openai/gpt-4o`) is still accepted. The display name then falls back to the id's last path segment. `config.yaml` is the single source of model information: the paper's model names, the models appendix table, and the per-model macros are all generated from these fields.
 
 Use any [OpenRouter model ID](https://openrouter.ai/models). These are the subject models whose structural novelty is being measured. The canonical baseline is tiered by frontier capability rather than by openness: Tier A collects the four frontier flagships from each top-tier provider (Anthropic, OpenAI, Google, DeepSeek), Tier B adds the remaining major frontier open-weight providers (Meta, Alibaba, Mistral), and Tier C gives a ~8B small-model baseline from the three Tier-B providers so the benchmark exposes a within-provider scaling axis.
 
@@ -84,20 +79,29 @@ Use any [OpenRouter model ID](https://openrouter.ai/models). These are the subje
 
 ```yaml
 judge_models:
-  - anthropic/claude-opus-4.6
-  - google/gemini-2.5-pro
-  - openai/gpt-5.4-2026-03-05
+  - id: anthropic/claude-opus-4.6
+    name: "Claude Opus 4.6"
+    key: ClaudeOpus
+    date: "2026-02-04"                    # release date of the pinned snapshot, as the paper prints it
+  - id: google/gemini-3.1-pro-preview
+    name: "Gemini 3.1 Pro"
+    key: Gemini
+    date: "2025-12-17"
+  - id: openai/gpt-5.4
+    name: "GPT-5.4"
+    key: GPT
+    date: "2026-03-05"
 
 judge_overrides:
   anthropic/claude-opus-4.6:
     provider: anthropic
     model_id: claude-opus-4-6
-  google/gemini-2.5-pro:
+  google/gemini-3.1-pro-preview:
     provider: google
-    model_id: gemini-2.5-pro-preview-03-25
-  openai/gpt-5.4-2026-03-05:
+    model_id: gemini-3.1-pro-preview
+  openai/gpt-5.4:
     provider: openai
-    model_id: gpt-5.4-2026-03-05
+    model_id: gpt-5.4
 ```
 
 These models evaluate the generated descriptions. All judges score every subject model, including models from the same provider family as one judge. Self-preference bias on same-family pairs is diluted across the two cross-family judges via the panel-of-judges design (Verga et al., 2024); residual bias is documented in the paper's Limitations section. Using 2–3 judges enables inter-rater reliability analysis (Krippendorff's α).
@@ -162,14 +166,19 @@ The `prompt_paraphrases:` block is read only by the prompt paraphrase sensitivit
 
 ### Provider routing
 
-Subject models are addressed by their OpenRouter slug (`meta-llama/llama-3.1-70b-instruct`, etc.) and OpenRouter selects an upstream provider. The canonical config does not restrict routing: the model IDs are pinned, and the per-call `model_resolved` / `call_id` fields on each generation row record which upstream actually served the request, giving a per-row audit trail. If a deployment needs hard-locked routing, add an `allowed_providers:` list (and optionally `allow_provider_fallbacks: false`) to the config.
+Subject models are addressed by their OpenRouter slug (`meta-llama/llama-3.1-70b-instruct`, etc.) and OpenRouter selects an upstream provider. The canonical config does not restrict routing: the model IDs are pinned, and the per-call `model_resolved` / `call_id` fields on each generation row record which upstream actually served the request, giving a per-row audit trail. If a deployment needs hard-locked routing, add an `allowed_providers:` list (and optionally `allow_provider_fallbacks: false`) to the config. A model entry's `provider` pins that model to one upstream with fallbacks off. Set `allow_fallbacks: true` on the entry to let OpenRouter route elsewhere when the pinned upstream is unavailable. Each generation row stores the upstream that served it in `served_provider`. Rows written before this field existed do not have it.
 
 ### Generation parameters
 
 ```yaml
-temperature: 1.0   # Controls randomness; 1.0 recommended for creativity tasks
-max_tokens: 800    # Max length of each generated description
+temperature: 1.0                # Controls randomness; 1.0 recommended for creativity tasks
+max_tokens: 16000               # Output-token limit of the first generation call
+max_tokens_ceiling: 64000       # Largest limit a generation call may escalate to
+judge_max_tokens: 8000          # Output-token limit of the first extraction call
+judge_max_tokens_ceiling: 32000 # Largest limit an extraction call may escalate to
 ```
+
+Every response must end on its own stop token. A subject-model or judge response cut off at the limit is discarded and logged in `cut_offs.jsonl` next to `responses.jsonl` or `features.jsonl`. The call is repeated with the limit doubled, up to the ceiling. A response still cut off at the ceiling is not recorded, so the next run retries it. Each generation and extraction record stores the limit it was produced under (`max_tokens`) and the number of discarded calls (`n_cut_offs`). `model_overrides` sets either limit per subject model, and a `judge_models` entry sets either limit per judge. Lower a ceiling to a provider's output limit where needed.
 
 ---
 
@@ -181,7 +190,7 @@ The full pipeline is a single command:
 python3 -m alienbench run
 ```
 
-This chains the five stages (generate → extract → score → analyze → latex). All stages are **checkpointed**: re-running picks up where an interrupted run left off, so repeating `run` after a network failure is safe.
+This chains the six stages (generate → extract → score → analyze → latex → paper). All stages are **checkpointed**: re-running picks up where an interrupted run left off, so repeating `run` after a network failure is safe.
 
 ### The `run.py` script
 
@@ -215,6 +224,16 @@ python3 -m alienbench run --from extract            # skip generation
 python3 -m alienbench run --to score                # stop before analysis
 ```
 
+To run the benchmark for selected subject models, pass `--model` with a model's id, `key`, or `name` from `config.yaml`. The flag may be repeated:
+
+```bash
+python3 -m alienbench run --model GPTSixAstra                    # one model
+python3 -m alienbench run --model openai/gpt-6-astra --model x-ai/grok-4.7
+python3 -m alienbench ablation prompt --model GPTSixAstra        # its paraphrase responses
+```
+
+`--model` restricts generation, extraction, and scoring to the named models. Every judge in the panel scores their responses. The analysis stages (`analyze`, `latex`, `paper`) and the ablation tables always cover every model in the config, because every result compares models. `--model` also works on the single stages `generate`, `extract`, and `score`. The `dimensions` and `judges` ablations make no API calls and do not accept it.
+
 Stages can also be run individually:
 
 ```bash
@@ -223,6 +242,7 @@ python3 -m alienbench extract
 python3 -m alienbench score
 python3 -m alienbench analyze
 python3 -m alienbench latex
+python3 -m alienbench paper
 ```
 
 To use a non-default config file, pass `--config` either before or after the subcommand:
@@ -502,13 +522,18 @@ alienbench/data/
       {prompt_variant}/
         responses.jsonl          # Raw generated descriptions
                                  # incl. model_resolved + call_id (provenance)
+                                 # and request: the API call exactly as sent
+        cut_offs.jsonl           # Discarded calls cut off at max_tokens, each with its request
 
   extractions/
     {judge_model}/
       {model}/
         {prompt_variant}/
           features.jsonl         # Ward features extracted per description
-                                 # incl. judge_model_resolved + judge_call_id
+                                 # incl. judge_model_resolved + judge_call_id,
+                                 # request (the API call exactly as sent), and
+                                 # raw_response (the judge's text)
+          cut_offs.jsonl         # Discarded judge calls cut off at max_tokens, each with its request
 
   scores/
     {judge_model}/
@@ -534,6 +559,10 @@ alienbench/results/
   tab_reliability.tex                      # LaTeX table: inter-rater reliability
   tab_ward_dimensions.tex                  # LaTeX table: Ward feature departure rates
   tab_ward_scores.tex                      # LaTeX table: full scores
+  tab_models.tex, tab_prompts.tex          # LaTeX tables generated from config.yaml (models, prompt conditions)
+  tab_ward_definitions.tex, tab_boundary.tex  # LaTeX tables: Ward dimension definitions and boundary criteria
+  key_numbers.tex                          # \ab<Name> macros: every number and name in the paper's running text
+  findings.md                              # Result paragraphs of the paper, worded for the current data (read and paste)
   run_manifest.json                        # Provenance: config, config hash, package versions, timestamps
 
   # Ablations (written only when the corresponding ablation has been run)
@@ -553,6 +582,30 @@ alienbench/results/
   tab_ablation_judges.tex                  # Judge ablation: LaTeX table
   summary_ablation_judges.txt              # Judge ablation: text summary
 ```
+
+### Paper artifacts
+
+The paper contains no hand-typed number, model name, or table body. Three kinds of generated file feed `paper/latex/paper.tex`:
+
+- **Tables.** Every `tab_*.tex` file holds a `tabular` alone. The float, `\resizebox`, caption, and label are authored in `paper.tex`, so regenerating a table cannot overwrite the wording of a caption.
+- **Number macros.** `python3 -m alienbench paper` writes `results/key_numbers.tex`, one `\ab<Name>` macro per number or name that the running text and the captions print (means with confidence intervals, test statistics, reliability coefficients, ablation summaries, model and judge names, design constants such as sample counts and token limits). The statistics are recomputed from `data/scores/` and the result CSVs, and the names come from `config.yaml`. A macro whose source is absent is left undefined, so a paper that cites it fails to compile instead of printing a stale number.
+- **Names.** Model, judge, tier, and prompt-condition names live only in `config.yaml` (see Configuration).
+
+After a change to the data or the config, regenerate in this order: `latex`, `analyze` (for `table_posthoc.csv`), the three ablations, then `paper`. `tests/test_paper.py` checks that every macro `paper.tex` uses is defined and that no model name is hardcoded in the paper.
+
+- **Claim checks.** `python3 -m alienbench paper` also writes `results/claims_check.md`. Macros keep the numbers current, but some sentences state the shape of a result (the top model is open-weight, exactly one model-feature pair falls below the human baseline, two models tie for second place). The report tests each such claim and names the sentence's location when it fails. It also lists missing generations and judge scores per model, every response that did not end on the model's own stop token (cut off at `max_tokens`, no finish reason, or stopped by a provider refusal), and result files older than the newest scores.
+- **Findings report.** `python3 -m alienbench paper` also writes `results/findings.md`. Where `claims_check.md` says that a sentence fails, the findings report gives the replacement. For every result paragraph of the paper (abstract, introduction, experiments, ablations, discussion, conclusion, appendix), it decides which case the data fall in (no exception, one exception, several, a tie or none, and so on) and writes the paragraph in the paper's wording for that case. Each sentence appears as LaTeX built from `\ab<Name>` macros, ready to paste, and with its values filled in. A tag says whether `paper.tex` already contains the sentence, contains it only in a comment, or not at all. Nothing in the report is fed into LaTeX: the authors read it and copy what they need. The few macros that only these sentences use (e.g. `\abExceptionList`, `\abConstrainedLowerNames`) are added to `key_numbers.tex`.
+
+### Extending the model line-up
+
+Every stage caches its work, so adding models only processes the new cells. Generation skips `(model, condition, sample_index)` records already on disk, and extraction and scoring skip `(judge, generation_id)` pairs already written. Existing results are not recomputed or billed again.
+
+1. **Add the models to `config.yaml`.** Give each entry an `id`, `name`, a letters-only `key` that no other model uses, a `tier`, the `resolved_version`, and `open_weights`. A model whose provider prefix matches a judge (e.g. `openai/...` with the GPT judge) becomes a same-family pair automatically. Several subject models from one provider are supported.
+2. **Check how responses ended.** Every model must end its description on its own stop token. Generation logs a warning for each response that does not, and a summary when it finishes. The section "Responses that did not end on the model's stop token" in `results/claims_check.md` gives the counts per model: no finish reason (the provider's stream ended early) and stopped by a provider refusal. Regenerate these before reporting results. Cut-off responses are never recorded. The section "Output-token limits" lists, per subject model and judge, the start limit, the ceiling, the records produced at a raised limit, and the samples still cut off at the ceiling. Raise the ceiling for any model or judge with unresolved samples and rerun.
+3. **Run the main pipeline:** `python3 alienbench/run.py`. It runs `generate`, `extract`, `score`, `analyze`, `latex`, and `paper`. The human baseline is already scored and needs no rerun, because the judge panel does not change. Its extractions and scores live under `data/extractions/<judge>/human__prolific-baseline/` and `data/scores/<judge>/human__prolific-baseline/`. Keep them in place when archiving model data: the responses cannot be collected again, and without these files every human-baseline macro is undefined.
+4. **Rerun the ablations.** `ablation prompt` generates paraphrase responses for the new models (API cost). `ablation dimensions` and `ablation judges` re-aggregate the scores. Then run `paper` again.
+5. **Read `results/claims_check.md` and `results/findings.md`.** Every row marked **FAILS** in the claims check names a sentence whose wording, not only its numbers, must change. The findings report gives the paragraph in its new wording: paste the sentences tagged *new wording*. Items marked "check by hand" need a judgment call. The "Result files older than the newest scores" section must be empty.
+6. **Recompile the paper.** Tables, the radar figure, and all macros update on their own. The radar figure keeps the human baseline top left and the best model below it, and the other models fill rows of at most six in score order. Table highlighting is computed from the data, and every model tied for the top at the printed precision is bolded.
 
 Model IDs with `/` are stored as `__` in directory names (e.g., `openai/gpt-4o` → `openai__gpt-4o`).
 

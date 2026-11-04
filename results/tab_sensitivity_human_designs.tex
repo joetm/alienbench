@@ -1,0 +1,19 @@
+\begin{table}[htb]
+  \centering
+  \caption{Minimum detectable effect for the human-model comparison at 80\% power and $N = 100$ human responses, under each pairing of the human sample with the model side. The last row holds the human sample fixed and lets the model sample grow without bound, isolating the floor that $N$ alone imposes. Ward points use a single reference pooled standard deviation, built from the human sample and the median model sample, so the column is comparable across rows.}
+  \small
+  \label{tab:sensitivity_human_designs}
+  \begin{tabular}{lccccc}
+    \toprule
+    & & \multicolumn{2}{c}{$\alpha = 0.05$} & \multicolumn{2}{c}{$\alpha' = 0.005$} \\
+    \cmidrule(lr){3-4} \cmidrule(lr){5-6}
+    Comparison & $n$ & $d$ & Ward pts & $d$ & Ward pts \\
+    \midrule
+    Single model, baseline prompt & 30 & 0.59 & 1.09 & 0.77 & 1.42 \\
+    Balanced reference & 100 & 0.40 & 0.74 & 0.52 & 0.96 \\
+    Single model, pooled over conditions & 180 & 0.35 & 0.65 & 0.46 & 0.85 \\
+    Full model panel, baseline prompt & 300 & 0.32 & 0.60 & 0.42 & 0.78 \\
+    Human sample as the only constraint & $\to\infty$ & 0.28 & 0.52 & 0.36 & 0.67 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

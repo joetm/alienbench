@@ -16,10 +16,13 @@ import time
 import uuid
 from pathlib import Path
 
-from alienbench.client import OpenRouterClient
+from alienbench.client import CutOffAtCeiling, OpenRouterClient, complete_within_limit
 from alienbench.config import Config, load_config
 from alienbench.paths import (
+    cut_offs_path,
+    ending,
     generations_path,
+    iter_jsonl,
     load_completed_sample_indices,
     model_dir_name,
     reservations_dir,
@@ -63,9 +66,52 @@ def _all_done(cfg: Config, data_dir: Path) -> bool:
     return True
 
 
-def run(config_path: str = "config.yaml") -> None:
+_ENDING_TEXT = {
+    "truncated": "ended at max_tokens",
+    "no_finish_reason": "has no finish reason",
+    "refusal": "was stopped by a provider refusal",
+    "other": "ended for another reason",
+}
+
+
+def report_endings(cfg: Config, data_dir: Path) -> None:
+    """Log how many responses in this config's cells did not end on "stop"."""
+    counts = {e: 0 for e in _ENDING_TEXT}
+    n = 0
+    for model in cfg.models:
+        for variant in cfg.prompt_variants:
+            path = generations_path(data_dir, model, variant.id)
+            if not path.exists():
+                continue
+            for rec in iter_jsonl(path):
+                if rec.get("sample_index", cfg.samples_per_condition) >= cfg.samples_per_condition:
+                    continue
+                n += 1
+                e = ending(rec)
+                if e != "stop":
+                    counts[e] += 1
+    bad = sum(counts.values())
+    if not bad:
+        logger.info("All %d responses ended on the model's own stop token.", n)
+        return
+    parts = ", ".join(f"{c} {_ENDING_TEXT[e]}" for e, c in counts.items() if c)
+    logger.warning(
+        "%d of %d responses did not end on the model's own stop token: %s. "
+        "Run `python -m alienbench paper` for the per-model report in "
+        "results/claims_check.md.", bad, n, parts,
+    )
+
+
+def run(config_path: str = "config.yaml", models: list[str] | None = None) -> None:
+    """Generate responses for every subject model, or only for ``models``.
+
+    ``models`` lists ids, keys, or names from the config (see
+    :meth:`Config.only_models`). ``None`` (default) runs every subject model.
+    """
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     cfg = load_config(config_path)
+    if models:
+        cfg = cfg.only_models(models)
     client = OpenRouterClient(cfg)
     data_dir = Path(cfg.data_dir)
     rng = random.Random()
@@ -88,8 +134,19 @@ def run(config_path: str = "config.yaml") -> None:
         n_done, n_total, n_remaining, len(cells),
     )
 
+    for model in cfg.models:
+        logger.info(
+            "Output-token limit for %s: starts at %d, doubles on each cut-off"
+            " up to %d.",
+            model, cfg.max_tokens_for(model), cfg.max_tokens_ceiling_for(model),
+        )
+
     n_done_this_run = 0
     n_failed_this_run = 0
+    # Samples recorded after at least one cut-off call, and samples still
+    # cut off at the ceiling (not recorded).
+    n_raised = 0
+    n_at_ceiling = 0
     # A sample_index that errors this run is excluded from re-reservation
     # so a persistent API error does not loop forever. Nothing is written
     # to the JSONL on failure, so the next ``generate`` run retries it.
@@ -121,20 +178,46 @@ def run(config_path: str = "config.yaml") -> None:
             progress = True
 
             seed = _sample_seed(model, variant.id, i)
-            try:
-                call_start = time.monotonic()
+            label = f"{model_dir_name(model)} / {variant.id} sample_index={i}"
+            # Timing of the last call, the one whose response is recorded.
+            timing: dict[str, float] = {}
+
+            def call(limit: int, model=model, variant=variant, seed=seed):
+                timing["start"] = time.monotonic()
                 response = client.complete(
                     model=model,
                     prompt=variant.text,
                     temperature=cfg.temperature,
-                    max_tokens=cfg.max_tokens_for(model),
+                    max_tokens=limit,
                     seed=seed,
+                    provider=cfg.provider_for(model),
+                    allow_fallbacks=cfg.allow_fallbacks_for(model),
                 )
-                duration_seconds = time.monotonic() - call_start
+                timing["duration"] = time.monotonic() - timing["start"]
+                timing["received_at"] = time.time()
+                return response
+
+            def log_cut_offs(entries: list[dict], model=model, variant=variant,
+                             i=i, seed=seed, path=responses_path) -> None:
+                for entry in entries:
+                    append_jsonl_locked(cut_offs_path(path), {
+                        "model": model, "prompt_variant": variant.id,
+                        "sample_index": i, "seed": seed, **entry,
+                    })
+
+            try:
+                response, limit, cut_offs = complete_within_limit(
+                    call,
+                    max_tokens=cfg.max_tokens_for(model),
+                    ceiling=cfg.max_tokens_ceiling_for(model),
+                    label=label,
+                )
+                log_cut_offs(cut_offs)
                 record = {
                     "id": str(uuid.uuid4()),
                     "model": model,
                     "model_resolved": response.model,
+                    "served_provider": response.provider,
                     "call_id": response.generation_id,
                     "prompt_variant": variant.id,
                     "prompt_text": variant.text,
@@ -142,17 +225,40 @@ def run(config_path: str = "config.yaml") -> None:
                     "temperature": cfg.temperature,
                     "seed": seed,
                     "sample_index": i,
-                    "timestamp": time.time(),
+                    "timestamp": timing["received_at"],
+                    "max_tokens": limit,
+                    "n_cut_offs": len(cut_offs),
                     "prompt_tokens": response.prompt_tokens,
                     "completion_tokens": response.completion_tokens,
-                    "duration_seconds": duration_seconds,
+                    "reasoning_tokens": response.reasoning_tokens,
+                    "finish_reason": response.finish_reason,
+                    "native_finish_reason": response.native_finish_reason,
+                    "duration_seconds": timing["duration"],
+                    "request": response.request,
                 }
                 append_jsonl_locked(responses_path, record)
+                if ending(record) != "stop":
+                    logger.warning(
+                        "%s / %s sample_index=%d did not end on the model's own"
+                        " stop token: %s (finish_reason=%r, native_finish_reason=%r,"
+                        " %d completion tokens, max_tokens=%d).",
+                        model, variant.id, i, _ENDING_TEXT[ending(record)],
+                        response.finish_reason, response.native_finish_reason,
+                        response.completion_tokens, limit,
+                    )
+                if cut_offs:
+                    n_raised += 1
                 n_done_this_run += 1
                 logger.info(
-                    "Wrote %s / %s sample_index=%d (%d this run)",
-                    model_dir_name(model), variant.id, i, n_done_this_run,
+                    "[%d/%d] Wrote %s / %s sample_index=%d",
+                    n_done + n_done_this_run, n_total,
+                    model_dir_name(model), variant.id, i,
                 )
+            except CutOffAtCeiling as e:
+                log_cut_offs(e.cut_offs)
+                n_at_ceiling += 1
+                failed_this_run.setdefault(cell_key, set()).add(key)
+                logger.error("%s. No record written; will retry on next run.", e)
             except Exception as e:
                 n_failed_this_run += 1
                 failed_this_run.setdefault(cell_key, set()).add(key)
@@ -167,6 +273,14 @@ def run(config_path: str = "config.yaml") -> None:
         if not progress:
             break
 
+    report_endings(cfg, data_dir)
+    if n_raised or n_at_ceiling:
+        logger.warning(
+            "Output-token limit: %d samples were recorded at a raised limit and"
+            " %d were still cut off at the ceiling (not recorded). Every"
+            " discarded call is logged in cut_offs.jsonl next to responses.jsonl.",
+            n_raised, n_at_ceiling,
+        )
     if _all_done(cfg, data_dir):
         logger.info(
             "Generation complete: %d new samples written this run (%d API failures).",

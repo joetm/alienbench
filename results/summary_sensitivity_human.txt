@@ -1,0 +1,71 @@
+# Sensitivity analysis: human baseline sample size
+
+Data directory: alienbench/data.bak.1778065662
+Human sample: human/prolific-baseline, prompt variant 'baseline'.
+
+## Realized design
+  Human responses          N = 100
+  Generations per model    n = 30
+  Model comparisons            10
+  Human Ward mean (0-10)       1.93 (SD 1.89)
+  95% CI half-width            0.375 Ward points
+
+## Minimum detectable effect, Ward total score (80% power, two-sided)
+  alpha = 0.05            d = 0.588 (1.09 Ward points)
+  alpha' = 0.0050        d = 0.771 (1.42 Ward points)
+  Mann-Whitney, alpha = 0.05   rank-biserial r = 0.334
+  Mann-Whitney, alpha' = 0.0050  rank-biserial r = 0.430
+
+## Minimum detectable effect by comparison design (N human held at 100)
+  Comparison                                                n       d     pts   d(Bonf)  pts(Bonf)
+  ----------------------------------------------------------------------------------------------
+  Single model, baseline prompt                            30   0.588    1.09     0.771       1.42
+  Balanced reference                                      100   0.398    0.74     0.521       0.96
+  Single model, pooled over conditions                    180   0.351    0.65     0.458       0.85
+  Full model panel, baseline prompt                       300   0.324    0.60     0.423       0.78
+  Human sample as the only constraint                     inf   0.280    0.52     0.365       0.67
+
+## Where the constraint sits
+  Detectable gap at N = 100, n = 30:        1.42 Ward points
+  Detectable gap as N -> infinity, n = 30:  0.94 Ward points
+  Reduction available from more humans:   0.48 Ward points (34%)
+  Anchor precision at N = 100:  +/- 0.375 Ward points
+  Anchor precision at N = 200:  +/- 0.263 Ward points (gain 0.111)
+
+## Observed gaps against the detectable threshold
+  Resolved (|d| >= MDE):   7/10 models
+  Unresolved:              3/10 models [google/gemini-3.1-pro-preview, mistralai/mistral-large-2411, openai/gpt-5.4]
+  Smallest resolved gap:   meta-llama/llama-4-maverick +1.47 Ward points (d = +0.80), 1.04x the MDE
+
+## Per-dimension detectable difference (percentage points, Bonferroni over 10 dimensions)
+  'baseline' pairs the human sample with the n=30 baseline generations.
+  'pooled' pairs it with the n=180 generations the paper's dimension table aggregates.
+  'median gap' and 'max gap' are the observed model-human differences; 'resolved' counts
+  the models whose gap clears the pooled corrected MDE.
+
+  Dimension                      Human   baseline    pooled   median gap   max gap  resolved
+  -----------------------------------------------------------------------------------------
+  Body Symmetry                  15.7%      33.0pp     20.1pp        26.9pp     40.1pp      7/10
+  Sensory Organs                 47.7%      36.1pp     22.1pp        32.5pp     50.9pp      9/10
+  Locomotion                     27.0%      36.2pp     22.1pp        35.3pp     51.9pp      8/10
+  Body Plan                      28.0%      36.4pp     22.2pp        40.1pp     48.9pp      7/10
+  Skin / Body Covering           22.7%      35.3pp     21.6pp        37.9pp     54.0pp      9/10
+  Reproduction                    6.0%      26.5pp     16.3pp        27.3pp     50.1pp      9/10
+  Metabolism / Energy Source     24.3%      35.7pp     21.8pp        21.8pp     51.2pp      5/10
+  Communication                   6.7%      27.2pp     16.6pp        32.0pp     42.8pp      9/10
+  Habitat                         9.7%      29.6pp     18.1pp         7.2pp     14.2pp      0/10
+  Cognitive Architecture          5.0%      25.5pp     15.7pp        17.1pp     28.0pp      7/10
+  Resolved model-dimension comparisons: 70/100 (70%)
+
+## Sample-size curve (n_model fixed)
+       N    MDE d   MDE pts  CI half-width
+  ----------------------------------------
+      25    0.773      1.43          0.779
+      50    0.655      1.21          0.536
+      75    0.611      1.13          0.434
+     100    0.588      1.09          0.375
+     150    0.563      1.04          0.305
+     200    0.551      1.02          0.263
+     300    0.538      0.99          0.214
+     400    0.532      0.98          0.186
+     800    0.522      0.96          0.131

@@ -1,10 +1,11 @@
 """Tests for the LaTeX-table generator (Stage 5).
 
-These tests build a small synthetic Ward DataFrame and assert that the three
-tables consumed by the paper (tab_ward_scores, tab_ward_dimensions,
-tab_reliability) compile to LaTeX strings with the structural elements the
-paper relies on. They protect against silent breakage of the Stage-5 output
-that the paper's ``\\input{}`` directives depend on.
+These tests build a small synthetic Ward DataFrame and assert that the tables
+consumed by the paper compile to ``tabular`` strings with the structural
+elements the paper relies on. The float, caption, and label live in
+``paper.tex``, so no generated table may carry them. The tests protect against
+silent breakage of the Stage-5 output that the paper's ``\\input{}``
+directives depend on.
 """
 
 from __future__ import annotations
@@ -24,8 +25,13 @@ _mock_krippendorff.alpha = lambda reliability_data, level_of_measurement: 0.85
 sys.modules.setdefault("krippendorff", _mock_krippendorff)
 
 from alienbench.dimensions import DIMENSION_IDS  # noqa: E402
+from alienbench.config import Config  # noqa: E402
 from alienbench.latex_tables import (  # noqa: E402
     _alpha_band,
+    _make_boundary_table,
+    _make_dimension_definitions_table,
+    _make_models_table,
+    _make_prompts_table,
     _make_reliability_table,
     _make_ward_dimensions_table,
     _make_ward_scores_table,
@@ -67,13 +73,19 @@ def ward_df():
 
 @pytest.fixture()
 def cfg():
-    """Minimal stand-in for a Config object (only attributes the tables touch)."""
-    obj = types.SimpleNamespace()
-    obj.models = ["anthropic/claude-3.5-sonnet", "openai/gpt-4o"]
-    obj.prompt_variants = [
-        types.SimpleNamespace(id="baseline", label="Baseline"),
-    ]
-    return obj
+    """A real Config, so the display names come from the same path as in production."""
+    return Config(
+        models=[
+            {"id": "anthropic/claude-3.5-sonnet", "name": "Claude 3.5 Sonnet",
+             "tier": "A", "resolved_version": "anthropic/claude-3.5-sonnet-20241022"},
+            {"id": "openai/gpt-4o", "name": "GPT-4o", "tier": "B"},
+        ],
+        judge_models=["j1", "j2"],
+        prompt_variants=[
+            {"id": "baseline", "label": "Baseline", "acronym": "Base",
+             "name": "Baseline", "text": "Imagine a creature."},
+        ],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -111,10 +123,10 @@ class TestWardScoresTable:
     def test_emits_booktabs_table_with_one_row_per_model(self, ward_df, cfg):
         tex = _make_ward_scores_table(ward_df, cfg)
 
-        assert tex.startswith("\\begin{table}")
-        assert tex.rstrip().endswith("\\end{table}")
+        assert tex.startswith("\\begin{tabular}")
+        assert tex.rstrip().endswith("\\end{tabular}")
         assert "\\toprule" in tex and "\\midrule" in tex and "\\bottomrule" in tex
-        assert "\\label{tab:ward_scores}" in tex
+        assert "\\caption" not in tex and "\\label" not in tex
         assert "Claude 3.5 Sonnet" in tex
         assert "GPT-4o" in tex
 
@@ -126,6 +138,12 @@ class TestWardScoresTable:
         # Specifically, the bolded row should be the Claude line.
         bold_lines = [l for l in tex.splitlines() if "\\textbf{" in l]
         assert any("Claude 3.5 Sonnet" in l for l in bold_lines)
+
+    def test_overall_column_precedes_prompt_columns(self, ward_df, cfg):
+        tex = _make_ward_scores_table(ward_df, cfg)
+        header = next(l for l in tex.splitlines() if l.strip().startswith("Model &"))
+        cols = [c.strip(" \\") for c in header.split("&")]
+        assert cols[1] == "Overall"
 
 
 # ---------------------------------------------------------------------------
@@ -140,13 +158,23 @@ class TestWardDimensionsTable:
             l for l in tex.splitlines()
             if l.strip().endswith("\\\\")
             and "&" in l
-            and "Dimension" not in l
+            and "Feature" not in l
         ]
         assert len(body_rows) == len(DIMENSION_IDS)
 
-    def test_label_is_tab_ward_dimensions(self, ward_df, cfg):
+    def test_carries_no_float_caption_or_label(self, ward_df, cfg):
         tex = _make_ward_dimensions_table(ward_df, cfg)
-        assert "\\label{tab:ward_dimensions}" in tex
+        assert "\\caption" not in tex and "\\label" not in tex
+        assert "\\begin{table}" not in tex
+
+    def test_human_baseline_is_the_first_column(self, ward_df, cfg):
+        human = pd.DataFrame([
+            _ward_row(model="human/prolific-baseline", gen_id="h1", judge="j1",
+                      variant="baseline", ward=1, symmetry=1),
+        ])
+        tex = _make_ward_dimensions_table(ward_df, cfg, human)
+        assert "Human baseline" in tex.splitlines()[2]
+        assert "100.0\\%" in tex
 
     def test_percentages_are_emitted(self, ward_df, cfg):
         tex = _make_ward_dimensions_table(ward_df, cfg)
@@ -158,14 +186,38 @@ class TestWardDimensionsTable:
 # ---------------------------------------------------------------------------
 
 class TestReliabilityTable:
-    def test_emits_total_and_per_dimension_rows(self, ward_df):
+    def test_emits_one_row_per_dimension_pair(self, ward_df):
         tex = _make_reliability_table(ward_df)
-        assert "Ward Total" in tex
-        # Each Ward dimension label should appear in the table; spot-check
-        # two distinctive labels.
         assert "Body Symmetry" in tex
         assert "Habitat" in tex
-        assert "\\label{tab:reliability_full}" in tex
+        assert "\\label" not in tex
+        # Two dimensions per row.
+        rows = [l for l in tex.splitlines() if l.strip().endswith("\\\\") and "&" in l
+                and "Feature" not in l]
+        assert len(rows) == len(DIMENSION_IDS) // 2
+
+
+# ---------------------------------------------------------------------------
+# Config-driven tables
+# ---------------------------------------------------------------------------
+
+class TestConfigTables:
+    def test_models_table_reads_names_and_versions_from_config(self, cfg):
+        tex = _make_models_table(cfg)
+        assert "Claude 3.5 Sonnet & \\texttt{anthropic/claude-3.5-sonnet}" in tex
+        assert "\\texttt{anthropic/claude-3.5-sonnet-20241022}" in tex
+        # No tier column, so no rules between tiers.
+        assert "Tier" not in tex
+        assert tex.count("\\midrule") == 1
+
+    def test_prompts_table_uses_the_config_acronym(self, cfg):
+        tex = _make_prompts_table(cfg)
+        assert "Base & Baseline & Imagine a creature." in tex
+
+    def test_definition_tables_cover_every_dimension(self):
+        for tex in (_make_dimension_definitions_table(), _make_boundary_table()):
+            assert tex.count("\\\\") == len(DIMENSION_IDS) + 1
+            assert "\\caption" not in tex
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +229,8 @@ class TestRun:
         """Write the minimum on-disk state ``latex_tables.run`` consumes."""
         cfg_text = f"""
 models:
-  - openai/gpt-4o-mini
+  - id: openai/gpt-4o-mini
+    name: "GPT-4o mini"
 judge_models:
   - openai/gpt-4o-mini
 samples_per_condition: 2
@@ -251,3 +304,24 @@ openrouter_base_url: https://openrouter.ai/api/v1
         # No tables written when there are no scores; `run` logs an error
         # rather than raising, so the user can rerun upstream stages.
         assert not (tmp_path / "results" / "tab_ward_scores.tex").exists()
+
+
+# ---------------------------------------------------------------------------
+# _make_paraphrases_table
+# ---------------------------------------------------------------------------
+
+def test_paraphrases_table_lists_every_wording_verbatim():
+    from alienbench.latex_tables import _make_paraphrases_table
+    cfg = Config(
+        models=["m/one"],
+        judge_models=["j1"],
+        prompt_variants=[{"id": "baseline", "label": "Baseline", "text": "Imagine a creature."}],
+        prompt_paraphrases=[
+            {"id": "baseline", "label": "Baseline", "text": "Imagine a creature."},
+            {"id": "baseline_para_a", "label": "Paraphrase A", "text": "Picture an organism."},
+        ],
+    )
+    tex = _make_paraphrases_table(cfg)
+    assert "Baseline & Imagine a creature." in tex
+    assert "Paraphrase A & Picture an organism." in tex
+    assert "\\caption" not in tex and "\\label" not in tex

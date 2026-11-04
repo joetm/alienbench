@@ -35,7 +35,12 @@ def _package_versions() -> dict[str, str]:
 
 def config_hash(cfg: Config) -> str:
     """SHA-256 over the config's JSON representation (stable key order)."""
-    payload = cfg.model_dump_json(exclude={"allowed_providers"})
+    # Provider routing does not change what is measured, so it is not hashed.
+    payload = cfg.model_dump_json(exclude={
+        "allowed_providers": True,
+        "model_info": {"__all__": {"provider", "allow_fallbacks"}},
+        "judge_info": {"__all__": {"provider"}},
+    })
     # re-dump with sorted keys for stability across Pydantic versions
     obj = json.loads(payload)
     canonical = json.dumps(obj, sort_keys=True, separators=(",", ":"))

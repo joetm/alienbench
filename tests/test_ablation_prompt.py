@@ -25,7 +25,12 @@ from alienbench.ablation_prompt import (  # noqa: E402
     _permutation_null_spearman,
     _spearman_matrix,
 )
-from alienbench.config import Config, PromptVariant  # noqa: E402
+from alienbench.config import (  # noqa: E402
+    Config,
+    ModelOverride,
+    PromptVariant,
+    load_config,
+)
 
 
 def _make_cfg(tmp_path: Path) -> Config:
@@ -54,6 +59,26 @@ def test_materialize_paraphrase_config_swaps_prompt_variants(tmp_path):
     ]
     assert loaded["models"] == ["m1", "m2", "m3"]
     assert loaded["judge_models"] == ["j1"]
+
+
+def test_materialize_paraphrase_config_keeps_output_token_limits(tmp_path):
+    # A provider rejects a request above its output limit, so the shadow
+    # config must send the same limits as the main run.
+    cfg = _make_cfg(tmp_path).model_copy(update={
+        "max_tokens": 32000,
+        "max_tokens_ceiling": 48000,
+        "model_overrides": {
+            "m1": ModelOverride(max_tokens=16384, max_tokens_ceiling=16384),
+        },
+    })
+    out = tmp_path / "shadow.yaml"
+    _materialize_paraphrase_config(cfg, out)
+    shadow = load_config(out)
+
+    assert shadow.max_tokens_for("m1") == 16384
+    assert shadow.max_tokens_ceiling_for("m1") == 16384
+    assert shadow.max_tokens_for("m2") == 32000
+    assert shadow.max_tokens_ceiling_for("m2") == 48000
 
 
 def test_per_model_variant_means_averages_across_judges_then_generations():
@@ -205,9 +230,11 @@ def test_latex_table_marks_preregistered_stable_pairs():
     )
     # Preregistered threshold marker is present on a passing pair.
     assert "\\ddagger" in tex
-    # Caption reports the joint pass count (1 ordered pair each direction
-    # for baseline/para_pass, so 2 off-diagonal pairs out of 12).
-    assert "2/12" in tex
+    # The ordered pair baseline/para_pass clears both bars in each direction,
+    # so exactly two cells carry the marker. The counts the caption quotes are
+    # macros of alienbench.paper.
+    assert tex.count("\\ddagger") == 2
+    assert "\\caption" not in tex and "\\begin{table}" not in tex
     # Constants match what the caption quotes.
     assert RHO_STABLE_THRESHOLD == pytest.approx(0.9)
     assert MAD_STABLE_THRESHOLD == pytest.approx(1.0)

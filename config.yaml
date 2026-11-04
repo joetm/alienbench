@@ -7,60 +7,253 @@
 # frontier open-weight providers (Meta, Alibaba, Mistral), and Tier C gives
 # a ~8B small-model baseline from the same three Tier-B providers so the
 # benchmark exposes a within-provider scaling axis.
+# Each entry carries everything the paper prints about the model: the
+# OpenRouter id (the key for paths and dataframes), the human-readable
+# name, a letters-only `key` for the generated LaTeX macros, the tier, and
+# the dated provider snapshot OpenRouter resolved the id to. The paper's
+# model names and the models appendix table are generated from these
+# fields (`alienbench paper`); nothing in paper.tex restates them.
+# `provider` pins the OpenRouter upstream that serves the model, as a
+# provider slug with an optional variant (e.g. `openai`, `openai/flex`,
+# `deepinfra/fp8`). Requests then go only to that provider, without
+# fallbacks. `null` keeps the default routing (`allowed_providers`, or the
+# built-in provider order with fallbacks).
 models:
   # Tier A: Frontier flagships (full models; no mini / lite tiers)
-  - anthropic/claude-opus-4.7
-  - openai/gpt-5.4
-  - google/gemini-3.1-pro-preview
-  - deepseek/deepseek-v3.2
+
+  # - id: anthropic/claude-fable-5.1
+  #   name: "Claude Fable 5.1"
+  #   key: ClaudeFableFiveOne
+  #   tier: A
+  #   resolved_version: null
+  #   open_weights: false
+  #   provider: anthropic
+
+  - id: anthropic/claude-opus-5.5
+    name: "Claude Opus 5.5"
+    key: ClaudeOpusFiveFive
+    tier: A
+    resolved_version: null
+    open_weights: false
+    provider: anthropic
+
+  # - id: anthropic/claude-opus-4.7
+  #   name: "Claude Opus 4.7"
+  #   key: ClaudeOpus
+  #   tier: A
+  #   resolved_version: anthropic/claude-4.7-opus-20260416
+  #   open_weights: false
+  #   provider: null
+
+  - id: openai/gpt-6-astra
+    name: "GPT-6 Astra"
+    key: GPTSixAstra
+    tier: A
+    resolved_version: openai/gpt-6-astra-20260903 # Sep 4, 2026
+    open_weights: false
+    provider: openai/flex
+
+  # - id: openai/gpt-5.4
+  #   name: "GPT-5.4"
+  #   key: GPT
+  #   tier: A
+  #   resolved_version: openai/gpt-5.4-20260305
+  #   open_weights: false
+  #   provider: null
+
+  - id: openai/gpt-6-luna
+    name: "GPT-6 Luna"
+    key: GPTSixLuna
+    tier: A
+    resolved_version: null # Sep 22, 2026
+    open_weights: false
+    provider: openai/flex
+
+  - id: google/gemini-3.8-flash
+    name: "Gemini 3.8 Flash"
+    key: Gemini
+    tier: A
+    resolved_version: null # Sep 2, 2026
+    open_weights: false
+    provider: google-ai-studio
+
+  - id: x-ai/grok-4.7
+    name: "Grok 4.7"
+    key: GrokFourSeven
+    tier: A
+    resolved_version: x-ai/grok-4.7 # Sep 21, 2026
+    open_weights: false
+    provider: xai
+
+  # - id: deepseek/deepseek-v3.2
+  #   name: "DeepSeek V3.2"
+  #   key: DeepSeek
+  #   tier: B
+  #   resolved_version: deepseek/deepseek-v3.2-20251201
+  #   open_weights: true
+  #   provider: null
+
+  - id: deepseek/deepseek-v4.1-flash
+    name: "DeepSeek V4.1 Flash 1017"
+    key: DeepSeekFourOne
+    tier: B
+    resolved_version: null # Sep 10, 2026
+    open_weights: true
+    provider: decart/fp4
+    # decart/fp4 left OpenRouter's endpoint list after 2026-11-03. Records
+    # generated with this setting name their provider in `served_provider`.
+    allow_fallbacks: true
+
   # Tier B: Other frontier open-weight
-  - meta-llama/llama-4-maverick
-  - qwen/qwen3-235b-a22b
-  - mistralai/mistral-large-2411
+
+  - id: meta-llama/llama-4-maverick
+    name: "Llama 4 Maverick"
+    key: LlamaMaverick
+    tier: B
+    resolved_version: null
+    open_weights: true
+    provider: digitalocean
+
+  # - id: qwen/qwen3-235b-a22b
+  #   name: "Qwen3-235B-A22B"
+  #   key: QwenLarge
+  #   tier: B
+  #   resolved_version: qwen/qwen3-235b-a22b-04-28
+  #   open_weights: true
+  #   provider: null
+
+  # - id: mistralai/mistral-large-2411
+  #   name: "Mistral Large 2411"
+  #   key: MistralLarge
+  #   tier: B
+  #   resolved_version: mistralai/mistral-large-2411
+  #   open_weights: true
+  #   provider: null
+
+  - id: mistralai/mistral-large-4-0
+    name: "Mistral Large 4"
+    key: MistralLarge
+    tier: B
+    resolved_version: mistralai/mistral-large-4-0
+    open_weights: true
+    provider: mistral
+
   # Tier C: Smaller open-weight (~8B)
-  - meta-llama/llama-3.1-8b-instruct
-  - qwen/qwen3-8b
-  - mistralai/ministral-14b-2512
+
+  # - id: meta-llama/llama-3.1-8b-instruct
+  #   name: "Llama 3.1 8B Instruct"
+  #   key: LlamaSmall
+  #   tier: C
+  #   resolved_version: meta-llama/llama-3.1-8b-instruct
+  #   open_weights: true
+  #   provider: null
+
+  - id: qwen/qwen3.8-27b
+    name: "Qwen3.8 27B fp8"
+    key: QwenThreeEightLarge
+    tier: C
+    resolved_version: null
+    open_weights: true
+    provider: chutes/fp8
+
+  - id: mistralai/ministral-14b-2512
+    name: "Ministral 3 14B 2512"
+    key: Ministral
+    tier: C
+    resolved_version: mistralai/ministral-14b-2512
+    open_weights: true
+    provider: mistral
+
+# Tier descriptions, as the paper's models appendix prints them.
+tiers:
+  A:
+    description: "frontier flagships"
+  B:
+    description: "other frontier open-weight models"
+  C:
+    description: "smaller open-weight models"
+    scale: "~8B"
+
+# Figures the paper quotes from cited work (not computed by this benchmark).
+# self_preference_points: Panickssery et al. (2024), absolute inflation on MT-Bench.
+literature:
+  self_preference_points: 10
+
+# Human baseline collection protocol (Prolific). The paper's Human baseline
+# paragraph and the exclusion count in the Limitations are generated from
+# these fields. Responses live under data/generations/human__prolific-baseline.
+human_baseline:
+  id: human/prolific-baseline
+  name: "Human baseline"
+  platform: Prolific
+  n_participants: 100
+  min_approval_rate: 95
+  min_prior_tasks: 100
+  hourly_pay: "£6.03"
+  median_minutes: 11
+  median_seconds: 21
+  n_excluded: 2
 
 # Judge panel for Ward feature extraction. The panel composition is a design variable and is
 # expected to be updated as stronger or more diverse judges become
 # available.
-# Aliases used as panel keys in paths and dataframes. Each alias is
-# routed to a native provider SDK with a pinned dated `model_id` via
-# `judge_overrides` below; the resolved upstream model is recorded
-# per-call as `judge_model_resolved` on every extraction row.
-# 
-# These are keys for the overrides below.
-# OpenRouter does not support pinned version.
-# But for future extensibility, this mapping is supported.
+# Aliases used as panel keys in paths and dataframes and as the OpenRouter
+# request slug. `provider` pins the OpenRouter upstream that serves the
+# judge (no fallbacks), as for the subject models. The pinned upstreams
+# match the native APIs the earlier extraction rows were collected from.
+# A judge with a `judge_overrides` entry goes to the native SDK instead,
+# and its `provider` must name that SDK (e.g. `google`).
+# The resolved upstream model is recorded per call as
+# `judge_model_resolved` on every extraction row.
 judge_models:
-  - anthropic/claude-opus-4.6 # Feb 4, 2026
-  - google/gemini-3.1-pro-preview # Dec 17, 2025
-  - openai/gpt-5.4 # Mar 5, 2026
-
-judge_overrides:
-  anthropic/claude-opus-4.6:
+  - id: anthropic/claude-opus-4.6
+    name: "Claude Opus 4.6"
+    key: ClaudeOpus
+    date: "2026-02-04"
     provider: anthropic
-    # Claude Opus 4.6 is Anthropic's previous-generation Opus. It has a
-    # dated snapshot (claude-opus-4-5-20251101 is 4.5; the 4.6 tier is
-    # currently exposed only under its unversioned alias). Pricing is
-    # identical to Opus 4.7 ($5/$25 per Mtok); 4.6 accepts `temperature`,
-    # which is deprecated on 4.7, so it is preferable for a deterministic
-    # judge. The resolved version is recorded per-call as
-    # judge_model_resolved on every extraction row.
-    model_id: claude-opus-4-6
-    # Optional AWS Bedrock failover. When set to true, a 429 from the
-    # direct Anthropic API triggers a one-shot retry against Bedrock
-    # using `bedrock_model_id`. The judge then routes through Bedrock
-    # for a short cooldown (30 s) so subsequent calls do not re-trip
-    # the same per-minute rate limit. Once the cooldown lapses the
-    # next call tries the direct API again, returning to the primary
-    # path when traffic has cleared. Set the AWS env vars in .env to
-    # enable boto3's credential chain. `judge_model_resolved` will
-    # show the Bedrock slug for failed-over calls, the Anthropic slug
-    # otherwise; both target the same underlying snapshot.
-    bedrock_fallback: true
-    bedrock_model_id: us.anthropic.claude-opus-4-6-v1
+  - id: google/gemini-3.1-pro-preview
+    name: "Gemini 3.1 Pro"
+    key: Gemini
+    date: "2025-12-17"
+    provider: google
+  - id: openai/gpt-5.4
+    name: "GPT-5.4"
+    key: GPT
+    date: "2026-03-05"
+    provider: openai
+
+# Native-SDK routing. All extraction rows collected before 2026-10-11 used
+# native SDKs (judge_model_resolved: claude-opus-4-6,
+# gemini-3.1-pro-preview, gpt-5.4-2026-03-05). Claude and GPT now go
+# through OpenRouter. Their probed calls showed no thinking or reasoning
+# tokens on either route.
+# Gemini stays native: OpenRouter sends no thinking setting, so Gemini
+# thinks by default (~2500 reasoning tokens per call), whereas the
+# Vertex calls set thinking_budget=0 and request a JSON response.
+# Uncomment the Claude or GPT entry to return that judge to its native SDK.
+judge_overrides:
+#   anthropic/claude-opus-4.6:
+#     provider: anthropic
+#     # Claude Opus 4.6 is Anthropic's previous-generation Opus. It has a
+#     # dated snapshot (claude-opus-4-5-20251101 is 4.5; the 4.6 tier is
+#     # currently exposed only under its unversioned alias). Pricing is
+#     # identical to Opus 4.7 ($5/$25 per Mtok); 4.6 accepts `temperature`,
+#     # which is deprecated on 4.7, so it is preferable for a deterministic
+#     # judge. The resolved version is recorded per-call as
+#     # judge_model_resolved on every extraction row.
+#     model_id: claude-opus-4-6
+#     # Optional AWS Bedrock failover. When set to true, a 429 from the
+#     # direct Anthropic API triggers a one-shot retry against Bedrock
+#     # using `bedrock_model_id`. The judge then routes through Bedrock
+#     # for a short cooldown (30 s) so subsequent calls do not re-trip
+#     # the same per-minute rate limit. Once the cooldown lapses the
+#     # next call tries the direct API again, returning to the primary
+#     # path when traffic has cleared. Set the AWS env vars in .env to
+#     # enable boto3's credential chain. `judge_model_resolved` will
+#     # show the Bedrock slug for failed-over calls, the Anthropic slug
+#     # otherwise; both target the same underlying snapshot.
+#     bedrock_fallback: true
+#     bedrock_model_id: us.anthropic.claude-opus-4-6-v1
   google/gemini-3.1-pro-preview:
     provider: google
     # Routed through Vertex AI rather than AI Studio. AI Studio's daily
@@ -74,12 +267,12 @@ judge_overrides:
     # differently from the AI Studio response.
     model_id: gemini-3.1-pro-preview
     use_vertex: true
-  openai/gpt-5.4:
-    provider: openai
-    # Pinned to the dated March 2026 snapshot so the judge is reproducible
-    # at submission time and does not drift with OpenRouter's floating
-    # `openai/gpt-5.4` alias (which is in the subject pool).
-    model_id: gpt-5.4
+#   openai/gpt-5.4:
+#     provider: openai
+#     # Pinned to the dated March 2026 snapshot so the judge is reproducible
+#     # at submission time and does not drift with OpenRouter's floating
+#     # `openai/gpt-5.4` alias (which is in the subject pool).
+#     model_id: gpt-5.4
 
 # Primary metric for AlienBench. The Ward Departure Score is the only
 # primary metric; a holistic creativity rubric was considered during pilot
@@ -109,45 +302,75 @@ prompt_ablation_samples_per_condition: 10
 
 # Generation parameters
 temperature: 1.0
-max_tokens: 800
+# Output-token limits. Every response must end on the model's own stop
+# token. A call starts at `max_tokens`. A response cut off at the limit is
+# discarded (logged in `cut_offs.jsonl` next to `responses.jsonl`), and the
+# call is repeated with the limit doubled, up to `max_tokens_ceiling`. A
+# response still cut off at the ceiling is not recorded, so the next run
+# retries it. Every record stores the limit it was produced under
+# (`max_tokens`) and the number of discarded calls (`n_cut_offs`).
+# Subject models start at the ceiling, so a call is never repeated at a
+# raised limit. A response cut off at 64000 is not recorded. The limit
+# leaves room for the hidden reasoning of thinking models, which counts
+# against the same limit. A model whose provider caps output below 64000
+# needs a `model_overrides` entry (Llama 4 Maverick allows 16384 on
+# OpenRouter).
+# The section "Output-token limits" in results/claims_check.md reports the
+# limits, the raised records, and any sample still cut off at the ceiling.
+max_tokens: 64000
+max_tokens_ceiling: 64000
 
-# Per-subject-model overrides for generation parameters. The default
-# ``max_tokens=800`` covers every non-thinking subject. Thinking models
-# whose hidden-reasoning tokens count against ``max_tokens`` (the
-# OpenRouter ``reasoning.exclude`` and ``reasoning.effort`` flags do not
-# reduce that consumption for Gemini 3.1 Pro Preview at submission time)
-# need a larger budget so the response can finish after the model's
-# private deliberation is done. The probe in ``dev/probe_gemini_reasoning.py``
-# observed ~1.1k reasoning tokens for a single baseline call; 4000 leaves
-# room for variation across samples and prompt variants while keeping the
-# per-call cost bounded.
+# The same rule for the judges' extraction calls. A judge entry under
+# `judge_models` may set its own `max_tokens` and `max_tokens_ceiling`.
+judge_max_tokens: 8000
+judge_max_tokens_ceiling: 32000
+
+# Per-subject-model overrides for the output-token limits, e.g.
+#   model_overrides:
+#     some/model:
+#       max_tokens: 32000
+#       max_tokens_ceiling: 16384   # the provider's output limit
 model_overrides:
-  google/gemini-3.1-pro-preview:
-    max_tokens: 4000
+  meta-llama/llama-4-maverick:
+    max_tokens: 16384
+    max_tokens_ceiling: 16384
+
 
 # Prompt variants
 prompt_variants:
   - id: baseline
+    acronym: "Base"
+    name: "Baseline"
     label: "Baseline"
     text: "Imagine a creature that lives on an alien planet. Describe it in detail."
 
   - id: departure_primed
+    acronym: "Dep-P"
+    name: "Departure-primed"
     label: "Departure-primed"
     text: "Imagine a creature on an alien planet that is as different from any Earth creature as possible. Describe it in detail."
 
   - id: constrained_no_light
+    acronym: "NoLight"
+    name: "Constrained: no light"
     label: "Constrained: No Light"
     text: "Imagine a creature that lives on a planet with no light at all. Describe it in detail."
 
   - id: constrained_high_gravity
+    acronym: "HighG"
+    name: "Constrained: high gravity"
     label: "Constrained: High Gravity"
     text: "Imagine a creature that lives on a planet with 10x Earth's gravity. Describe it in detail."
 
   - id: constrained_ammonia
+    acronym: "NH$_3$"
+    name: "Constrained: ammonia oceans"
     label: "Constrained: Ammonia Oceans"
     text: "Imagine a creature that lives on a planet with oceans of liquid ammonia instead of water. Describe it in detail."
 
   - id: detailed_description
+    acronym: "Detail"
+    name: "Detailed description"
     label: "Detailed description"
     text: "Imagine a creature on an alien planet. Describe it in full detail, including any aspects of its biology that would help someone understand what kind of organism it is."
 

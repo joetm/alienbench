@@ -1,4 +1,11 @@
-"""Stage 5: Generate LaTeX tables for direct inclusion in the paper."""
+"""Stage 5: Generate the paper's LaTeX tables.
+
+Every file holds a ``tabular`` alone. The float, ``\\resizebox``, caption, and
+label are authored in ``paper/latex/paper.tex``, so regenerating a table cannot
+overwrite an edit to the wording of its caption. Model, judge, tier, and
+prompt names come from ``config.yaml``, and the numbers a caption or sentence
+quotes come from the macros of :mod:`alienbench.paper`.
+"""
 
 from __future__ import annotations
 
@@ -9,9 +16,9 @@ import numpy as np
 import pandas as pd
 
 from alienbench.config import load_config
-from alienbench.dimensions import DIMENSION_IDS, WARD_DIMENSIONS  # noqa: F401
+from alienbench.dimensions import DIMENSION_IDS, PAPER_TEXT, WARD_DIMENSIONS  # noqa: F401
 from alienbench.paths import load_ward_scores, model_dir_name  # noqa: F401
-from alienbench.stats import bootstrap_ci, krippendorff_alpha
+from alienbench.stats import BOOTSTRAP_N, bootstrap_ci, krippendorff_alpha
 
 logger = logging.getLogger(__name__)
 
@@ -41,39 +48,15 @@ def _alpha_band(alpha: float) -> str:
 # Formatting helpers
 # ---------------------------------------------------------------------------
 
-def _model_label(model_id: str) -> str:
-    """Convert a provider/model-id string to a short display name."""
-    mapping = {
-        "openai/gpt-4o": "GPT-4o",
-        "google/gemini-2.0-flash-001": "Gemini 2.0 Flash",
-        "anthropic/claude-3.5-sonnet": "Claude 3.5 Sonnet",
-    }
-    if model_id in mapping:
-        return mapping[model_id]
-    # Fallback: strip provider prefix and capitalise
-    parts = model_id.split("/", 1)
-    return parts[-1] if len(parts) > 1 else model_id
-
-
-_PROMPT_SHORT_LABELS = {
-    "baseline": "Base",
-    "departure_primed": "Dep-P",
-    "constrained_no_light": "NoLight",
-    "constrained_high_gravity": "HighG",
-    "constrained_ammonia": "NH$_3$",
-    "detailed_description": "Detail",
-}
-
-
 def _short_prompt_label(variant) -> str:
     """Compact column header for a prompt variant."""
-    return _PROMPT_SHORT_LABELS.get(variant.id, variant.label)
+    return variant.short
 
 
 def _fmt_mean_sd(values: pd.Series) -> str:
     v = values.dropna()
     if len(v) < 2:
-        return "---"
+        return "--"
     return f"{v.mean():.2f} ({v.std(ddof=1):.2f})"
 
 
@@ -83,6 +66,17 @@ def _fmt_pct(value: float) -> str:
 
 def _bold(s: str) -> str:
     return f"\\textbf{{{s}}}"
+
+
+def _is_winner(value: float, best: float, decimals: int) -> bool:
+    """True when ``value`` ties the column maximum at the displayed precision.
+
+    Comparing rounded values bolds every model a reader sees as tied for the
+    top, so the highlighting always matches the printed numbers.
+    """
+    if np.isnan(value) or np.isnan(best):
+        return False
+    return f"{value:.{decimals}f}" == f"{best:.{decimals}f}"
 
 
 # ---------------------------------------------------------------------------
@@ -106,19 +100,16 @@ def _make_score_table(
     df: pd.DataFrame,
     score_col: str,
     cfg,
-    caption: str,
-    label: str,
-    score_range: str,
 ) -> str:
     models = [m for m in cfg.models if not df[df["subject_model"] == m].empty]
     variants = cfg.prompt_variants
 
     avg = _judge_avg(df, score_col)
 
-    # One column per prompt variant plus a trailing Overall column.
-    col_spec = "l" + "c" * len(variants) + "c"
+    # An Overall column followed by one column per prompt variant.
+    col_spec = "l" + "c" + "c" * len(variants)
     col_headers = " & ".join(
-        [_short_prompt_label(v) for v in variants] + ["Overall"]
+        ["Overall"] + [_short_prompt_label(v) for v in variants]
     )
 
     # Per-(model, variant) mean of per-generation judge-averaged scores.
@@ -150,7 +141,7 @@ def _make_score_table(
     for m in models:
         vals = avg.loc[avg["subject_model"] == m, score_col].values
         if len(vals) > 0:
-            _, lo, hi = bootstrap_ci(vals, n_boot=10_000)
+            _, lo, hi = bootstrap_ci(vals, n_boot=BOOTSTRAP_N)
             overall_ci[m] = (lo, hi)
         else:
             overall_ci[m] = (float("nan"), float("nan"))
@@ -164,17 +155,11 @@ def _make_score_table(
     overall_col_max = max(overall_vals) if overall_vals else float("nan")
 
     def _maybe_bold(value: float, col_best: float, text: str) -> str:
-        if not np.isnan(value) and not np.isnan(col_best) and abs(value - col_best) < 1e-9:
-            return _bold(text)
-        return text
+        # Cells print means with two decimals.
+        return _bold(text) if _is_winner(value, col_best, 2) else text
 
     rows = []
     for m in models:
-        row_cells = [_model_label(m)]
-        for v in variants:
-            row_cells.append(
-                _maybe_bold(cell_means[(m, v.id)], col_max[v.id], cell_strs[(m, v.id)])
-            )
         if not np.isnan(overall_means[m]):
             lo, hi = overall_ci[m]
             if not np.isnan(lo) and not np.isnan(hi):
@@ -182,103 +167,82 @@ def _make_score_table(
             else:
                 overall_str = f"{overall_means[m]:.2f}"
         else:
-            overall_str = "---"
-        row_cells.append(_maybe_bold(overall_means[m], overall_col_max, overall_str))
+            overall_str = "--"
+        row_cells = [
+            cfg.model_name(m),
+            _maybe_bold(overall_means[m], overall_col_max, overall_str),
+        ]
+        for v in variants:
+            row_cells.append(
+                _maybe_bold(cell_means[(m, v.id)], col_max[v.id], cell_strs[(m, v.id)])
+            )
         rows.append(f"    {' & '.join(row_cells)} \\\\")
 
     lines = [
-        "\\begin{table}[htbp]",
-        "  \\centering",
-        f"  \\caption{{{caption}}}",
-        "  \\small",
-        f"  \\label{{{label}}}",
-        "  \\resizebox{\\textwidth}{!}{%",
-        f"  \\begin{{tabular}}{{{col_spec}}}",
-        "    \\toprule",
-        f"    Model & {col_headers} \\\\",
-        "    \\midrule",
+        f"\\begin{{tabular}}{{{col_spec}}}",
+        "  \\toprule",
+        f"  Model & {col_headers} \\\\",
+        "  \\midrule",
     ]
     lines += rows
     lines += [
-        "    \\bottomrule",
-        "  \\end{tabular}%",
-        "  }",
-        "\\end{table}",
+        "  \\bottomrule",
+        "\\end{tabular}",
     ]
     return "\n".join(lines) + "\n"
 
 
 def _make_ward_scores_table(ward_df: pd.DataFrame, cfg) -> str:
-    return _make_score_table(
-        ward_df,
-        "ward_score",
-        cfg,
-        caption=(
-            "Ward Departure Scores (0--10) by model and prompt condition. "
-            "Rows are subject models; columns are prompt conditions with a "
-            "final Overall column averaged across all conditions. "
-            "Per-condition cells report mean (SD) across generations after "
-            "averaging judges per generation. The Overall column reports the "
-            "per-model mean with a bootstrap percentile 95\\% CI in brackets "
-            "($B=10{,}000$) over per-generation judge-averaged Ward scores. "
-            "Bold marks the top model in each column. "
-            "Column headers: Base = baseline, Dep-P = departure-primed, "
-            "NoLight = constrained (no light), HighG = constrained "
-            "(10$\\times$ Earth gravity), NH$_3$ = constrained (ammonia "
-            "oceans), Detail = detailed description."
-        ),
-        label="tab:ward_scores",
-        score_range="0--10",
-    )
+    return _make_score_table(ward_df, "ward_score", cfg)
+
+
+def dimension_alphas(ward_df: pd.DataFrame) -> dict[str, float]:
+    """Nominal-level Krippendorff alpha per Ward dimension id, over all generations."""
+    out: dict[str, float] = {}
+    if ward_df["judge_model"].nunique() < 2:
+        return out
+    for dim_info in WARD_DIMENSIONS:
+        col = f"dim_{dim_info['id']}"
+        if col in ward_df.columns:
+            out[dim_info["id"]] = krippendorff_alpha(
+                ward_df, "judge_model", "generation_id", col, level="nominal"
+            )
+    return out
 
 
 def _make_reliability_table(ward_df: pd.DataFrame) -> str:
-    rows = []
-
-    def _add(measure: str, alpha: float) -> None:
-        rows.append((measure, f"{alpha:.3f}", _alpha_band(alpha)))
-
-    # Ward total (interval-level measurement)
-    if ward_df["judge_model"].nunique() >= 2:
-        _add("Ward Total (0--10)", krippendorff_alpha(ward_df, "judge_model", "generation_id", "ward_score", level="interval"))
-
-    # Per Ward dimension (nominal-level measurement for binary scores)
+    """Per-dimension alpha, two dimensions per row (the composite alpha is a macro)."""
+    alphas = dimension_alphas(ward_df)
+    cells = []
     for dim_info in WARD_DIMENSIONS:
-        col = f"dim_{dim_info['id']}"
-        if col in ward_df.columns and ward_df["judge_model"].nunique() >= 2:
-            alpha = krippendorff_alpha(ward_df, "judge_model", "generation_id", col, level="nominal")
-            _add(dim_info["label"], alpha)
-
-    def _row(measure: str, alpha_str: str, band: str) -> str:
-        return f"    {measure} & {alpha_str} & {band} \\\\"
+        if dim_info["id"] in alphas:
+            a = alphas[dim_info["id"]]
+            cells.append((dim_info["label"], f"{a:.3f}", _alpha_band(a)))
 
     lines = [
-        "\\begin{table}[htbp]",
-        "  \\centering",
-        "  \\caption{Inter-rater reliability (Krippendorff's $\\alpha$) between LLM judges "
-        "across all generations. Ward Total uses interval-level $\\alpha$; individual "
-        "dimensions use nominal-level $\\alpha$ (binary scores). "
-        "Bands follow Landis \\& Koch (1977): Poor ($<$0.20), "
-        "Fair (0.20--0.40), Moderate (0.40--0.60), Good (0.60--0.80), Excellent ($\\geq$0.80).}",
-        "  \\small",
-        "  \\label{tab:reliability_full}",
-        "  \\begin{tabular}{lcc}",
-        "    \\toprule",
-        "    Measure & $\\alpha$ & Interpretation \\\\",
-        "    \\midrule",
+        "\\begin{tabular}{lcclcc}",
+        "  \\toprule",
+        "  Feature & $\\alpha$ & Interpretation & Feature & $\\alpha$ & Interpretation \\\\",
+        "  \\midrule",
     ]
-    for measure, alpha_str, band in rows:
-        lines.append(_row(measure, alpha_str, band))
-
-    lines += [
-        "    \\bottomrule",
-        "  \\end{tabular}",
-        "\\end{table}",
-    ]
+    for i in range(0, len(cells), 2):
+        left = " & ".join(cells[i])
+        right = " & ".join(cells[i + 1]) if i + 1 < len(cells) else " & &"
+        lines.append(f"  {left} & {right} \\\\")
+    lines += ["  \\bottomrule", "\\end{tabular}"]
     return "\n".join(lines) + "\n"
 
 
-def _make_ward_dimensions_table(ward_df: pd.DataFrame, cfg) -> str:
+def _human_dimension_means(human_df: pd.DataFrame) -> dict[str, float]:
+    """Per-dimension departure rate of the human baseline (judges, then generations)."""
+    dim_cols = [f"dim_{d}" for d in DIMENSION_IDS]
+    per_gen = human_df.groupby("generation_id")[dim_cols].mean()
+    return per_gen.mean().to_dict()
+
+
+def _make_ward_dimensions_table(
+    ward_df: pd.DataFrame, cfg, human_df: pd.DataFrame | None = None
+) -> str:
     models = [m for m in cfg.models if not ward_df[ward_df["subject_model"] == m].empty]
 
     dim_cols = [f"dim_{d}" for d in DIMENSION_IDS]
@@ -293,8 +257,16 @@ def _make_ward_dimensions_table(ward_df: pd.DataFrame, cfg) -> str:
     # Then average across generations per subject_model
     model_means = avg.groupby("subject_model")[dim_cols].mean()
 
-    col_spec = "l" + "c" * len(models)
-    col_headers = " & ".join([_model_label(m) for m in models])
+    human_means = (
+        _human_dimension_means(human_df)
+        if human_df is not None and not human_df.empty else None
+    )
+
+    headers = [cfg.model_name(m) for m in models]
+    if human_means is not None:
+        headers.insert(0, cfg.human_baseline.name)
+    col_spec = "l" + "c" * len(headers)
+    col_headers = " & ".join(f"\\rotatebox{{90}}{{{h}}}" for h in headers)
 
     rows = []
     for dim_info, col in zip(WARD_DIMENSIONS, dim_cols):
@@ -306,45 +278,129 @@ def _make_ward_dimensions_table(ward_df: pd.DataFrame, cfg) -> str:
                 cells.append((v, _fmt_pct(v)))
                 vals.append(v)
             else:
-                cells.append((float("nan"), "---"))
+                cells.append((float("nan"), "--"))
                 vals.append(float("nan"))
 
         max_val = max((v for v in vals if not np.isnan(v)), default=float("nan"))
         formatted = []
         for (v, cell_str) in cells:
-            if not np.isnan(v) and abs(v - max_val) < 1e-9:
+            # Rates print as percentages with one decimal.
+            if _is_winner(v * 100, max_val * 100, 1):
                 formatted.append(_bold(cell_str))
             else:
                 formatted.append(cell_str)
+        if human_means is not None:
+            formatted.insert(0, _fmt_pct(human_means[col]))
 
         row_cells = " & ".join([dim_info["label"]] + formatted)
-        rows.append(f"    {row_cells} \\\\")
+        rows.append(f"  {row_cells} \\\\")
 
     lines = [
-        "\\begin{table}[htbp]",
-        "  \\centering",
-        "  \\caption{Ward feature departure rates (\\%) per dimension and model, "
-        "averaged across all prompt conditions and judges. "
-        "Bold marks the highest departure rate per dimension.}",
-        "  \\small",
-        "  \\label{tab:ward_dimensions}",
-        f"  \\begin{{tabular}}{{{col_spec}}}",
-        "    \\toprule",
-        f"    Dimension & {col_headers} \\\\",
-        "    \\midrule",
+        f"\\begin{{tabular}}{{{col_spec}}}",
+        "  \\toprule",
+        f"  Feature & {col_headers} \\\\",
+        "  \\midrule",
     ]
     lines += rows
-    lines += [
-        "    \\bottomrule",
-        "  \\end{tabular}",
-        "\\end{table}",
+    lines += ["  \\bottomrule", "\\end{tabular}"]
+    return "\n".join(lines) + "\n"
+
+
+def _make_models_table(cfg) -> str:
+    """Appendix table of the subject models: name, slug, resolved snapshot."""
+    lines = [
+        "\\begin{tabular}{lll}",
+        "  \\toprule",
+        "  Model & OpenRouter slug & Resolved version \\\\",
+        "  \\midrule",
     ]
+    for m in cfg.models:
+        resolved = cfg.model_info[m].resolved_version or "--"
+        lines.append(
+            f"  {cfg.model_name(m)} & \\texttt{{{m}}} & \\texttt{{{resolved}}} \\\\"
+        )
+    lines += ["  \\bottomrule", "\\end{tabular}"]
+    return "\n".join(lines) + "\n"
+
+
+def _make_prompts_table(cfg) -> str:
+    """Prompt-condition table: acronym, condition name, verbatim prompt text."""
+    lines = [
+        "\\begin{tabular}{llp{8.5cm}}",
+        "  \\toprule",
+        "  Acronym & Condition & Prompt text \\\\",
+        "  \\midrule",
+    ]
+    for v in cfg.prompt_variants:
+        lines.append(f"  {v.short} & {v.display} & {v.text} \\\\")
+    lines += ["  \\bottomrule", "\\end{tabular}"]
+    return "\n".join(lines) + "\n"
+
+
+def _make_paraphrases_table(cfg) -> str:
+    """Prompt-paraphrase table: wording label and verbatim prompt text.
+
+    The first row is the baseline prompt of the main study, so the table
+    shows each rewording next to the wording it replaces.
+    """
+    lines = [
+        "\\begin{tabular}{lp{10cm}}",
+        "  \\toprule",
+        "  Wording & Prompt text \\\\",
+        "  \\midrule",
+    ]
+    for v in cfg.prompt_paraphrases:
+        lines.append(f"  {v.display} & {v.text} \\\\")
+    lines += ["  \\bottomrule", "\\end{tabular}"]
+    return "\n".join(lines) + "\n"
+
+
+def _make_dimension_definitions_table() -> str:
+    """Feature, Earth-typical default, and example departures."""
+    lines = [
+        "\\begin{tabular}{llll}",
+        "\\toprule",
+        "\\# & Feature & Earth-typical default & Example departures \\\\",
+        "\\midrule",
+    ]
+    for i, d in enumerate(WARD_DIMENSIONS, start=1):
+        t = PAPER_TEXT[d["id"]]
+        lines.append(
+            f"{i} & {t['short']} & {t['summary_default']} & {t['summary_examples']} \\\\"
+        )
+    lines += ["\\bottomrule", "\\end{tabular}"]
+    return "\n".join(lines) + "\n"
+
+
+def _make_boundary_table() -> str:
+    """Boundary criteria of the extraction prompt, one row per dimension."""
+    lines = [
+        "\\begin{tabular}{lp{1.8cm}p{2.4cm}p{6.0cm}}",
+        "\\toprule",
+        "Feature & Earth default & Departure examples & Boundary rule \\\\",
+        "\\midrule",
+    ]
+    for d in WARD_DIMENSIONS:
+        t = PAPER_TEXT[d["id"]]
+        lines.append(
+            f"{t['short']} & {t['boundary_default']} & {t['boundary_examples']} & "
+            f"{t['boundary_rule']} \\\\"
+        )
+    lines += ["\\bottomrule", "\\end{tabular}"]
     return "\n".join(lines) + "\n"
 
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
+def load_human_scores(cfg) -> pd.DataFrame:
+    """Ward scores of the human baseline, judged by the same panel (may be empty)."""
+    baseline = [v for v in cfg.prompt_variants if v.id == "baseline"]
+    return load_ward_scores(
+        Path(cfg.data_dir), cfg.judge_models, [cfg.human_baseline.id], baseline
+    )
+
 
 def run(config_path: str = "config.yaml") -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -361,11 +417,17 @@ def run(config_path: str = "config.yaml") -> None:
         return
 
     logger.info("Ward records: %d", len(ward_df))
+    human_df = load_human_scores(cfg)
 
     tables: dict[str, str] = {
         "tab_ward_scores.tex": _make_ward_scores_table(ward_df, cfg),
-        "tab_ward_dimensions.tex": _make_ward_dimensions_table(ward_df, cfg),
+        "tab_ward_dimensions.tex": _make_ward_dimensions_table(ward_df, cfg, human_df),
         "tab_reliability.tex": _make_reliability_table(ward_df),
+        "tab_models.tex": _make_models_table(cfg),
+        "tab_prompts.tex": _make_prompts_table(cfg),
+        "tab_paraphrases.tex": _make_paraphrases_table(cfg),
+        "tab_ward_definitions.tex": _make_dimension_definitions_table(),
+        "tab_boundary.tex": _make_boundary_table(),
     }
 
     for filename, content in tables.items():

@@ -84,7 +84,13 @@ DIMENSION_LABELS = {d["id"]: d["label"] for d in WARD_DIMENSIONS}
 _WARD_MAX = 10.0  # Ward total is the count of departed dimensions, 0-10.
 
 plt.rcParams.update({
+    # Times matches the NeurIPS body font. The fallbacks cover systems
+    # without Times New Roman. Type 42 embeds TrueType instead of Type 3.
     "font.family": "serif",
+    "font.serif": ["Times New Roman", "TeX Gyre Termes", "Nimbus Roman", "DejaVu Serif"],
+    "mathtext.fontset": "stix",
+    "pdf.fonttype": 42,
+    "ps.fonttype": 42,
     "font.size": 10,
     "axes.titlesize": 11,
     "axes.labelsize": 10,
@@ -912,6 +918,7 @@ def run(config_path: str = "config.yaml", human_data_dir: str | None = None,
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    logging.getLogger("fontTools").setLevel(logging.WARNING)  # silence per-glyph PDF font-subsetting logs
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default=str(Path(__file__).parent / "config.yaml"))
     parser.add_argument(

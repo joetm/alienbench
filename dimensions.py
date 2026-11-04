@@ -83,6 +83,7 @@ WARD_DIMENSIONS = [
 ]
 
 DIMENSION_IDS = [d["id"] for d in WARD_DIMENSIONS]
+DIMENSION_LABELS = {d["id"]: d["label"] for d in WARD_DIMENSIONS}
 
 
 def compute_ward_score(features: dict, dimension_ids: list[str] | None = None) -> dict:
@@ -101,3 +102,92 @@ def compute_ward_score(features: dict, dimension_ids: list[str] | None = None) -
         "per_dimension": per_dimension,
         "total": sum(per_dimension.values()),
     }
+
+
+# Condensed wording the paper prints for each dimension. ``short`` is the row
+# label of the tables, ``summary_default`` / ``summary_examples`` fill the
+# dimension-definition table, and ``boundary_*`` fill the boundary-criteria
+# appendix table. LaTeX markup is allowed. The extraction prompt itself uses
+# the longer fields of :data:`WARD_DIMENSIONS`.
+PAPER_TEXT = {
+    "symmetry": {
+        "short": "Symmetry",
+        "summary_default": "Bilateral",
+        "summary_examples": "Radial, asymmetric, fractal",
+        "boundary_default": "Bilateral (left-right mirror)",
+        "boundary_examples": "Radial, asymmetric, fractal",
+        "boundary_rule": "Six limbs arranged bilaterally is still bilateral (score 0). Departure requires a fundamentally different symmetry type.",
+    },
+    "sensory_organs": {
+        "short": "Sensory organs",
+        "summary_default": "Eyes, ears, nose on head",
+        "summary_examples": "Distributed sensing, EM reception",
+        "boundary_default": "Eyes, ears, nose on head",
+        "boundary_examples": "Distributed sensing, EM reception",
+        "boundary_rule": "Eyes in unusual locations on a head structure are Earth-typical (score 0). Departure requires a fundamentally different sensory mechanism or absence of head-based sensing.",
+    },
+    "locomotion": {
+        "short": "Locomotion",
+        "summary_default": "Limbs (2 or 4)",
+        "summary_examples": "Sessile, rolling, jet propulsion",
+        "boundary_default": "Legs (2 or 4)",
+        "boundary_examples": "Sessile, rolling, jet propulsion",
+        "boundary_rule": "Six or eight legs still uses legs (score 0). Departure requires a fundamentally different locomotion mechanism.",
+    },
+    "body_plan": {
+        "short": "Body plan",
+        "summary_default": "Head, torso, limbs",
+        "summary_examples": "No head, amorphous, colonial",
+        "boundary_default": "Head, torso, limbs",
+        "boundary_examples": "No head, amorphous, colonial",
+        "boundary_rule": "Unusual proportions with head/torso/limb structure are Earth-typical (score 0).",
+    },
+    "skin_covering": {
+        "short": "Skin/covering",
+        "summary_default": "Skin, fur, scales, feathers",
+        "summary_examples": "Crystalline, gaseous, energy-based",
+        "boundary_default": "Skin, fur, scales, feathers",
+        "boundary_examples": "Crystalline, gaseous, energy-based",
+        "boundary_rule": "Unusual skin colors or textures are Earth-typical (score 0). Departure requires a fundamentally non-biological covering.",
+    },
+    "reproduction": {
+        "short": "Reproduction",
+        "summary_default": "Sexual, binary sexes",
+        "summary_examples": "Budding, spores, multiple sexes",
+        "boundary_default": "Sexual, binary sexes",
+        "boundary_examples": "Budding, spores, multiple sexes",
+        "boundary_rule": "If not described, score 0 (assume Earth default). Score 1 only if a non-binary-sexual mechanism is explicitly described.",
+    },
+    "metabolism": {
+        "short": "Metabolism",
+        "summary_default": "Heterotrophic, aerobic",
+        "summary_examples": "Chemosynthesis, radiation feeding",
+        "boundary_default": "Heterotrophic, aerobic",
+        "boundary_examples": "Chemosynthesis, radiation feeding",
+        "boundary_rule": "Eating unusual organic matter is still heterotrophy (score 0). Departure requires a fundamentally non-organic energy source.",
+    },
+    "communication": {
+        "short": "Communication",
+        "summary_default": "Acoustic or visual signals",
+        "summary_examples": "Chemical, electromagnetic signaling",
+        "boundary_default": "Acoustic or visual signals",
+        "boundary_examples": "Chemical, EM pulses, neural link",
+        "boundary_rule": "If not described, score 0. Score 1 only if a non-acoustic, non-visual mechanism is explicitly primary.",
+    },
+    "habitat": {
+        "short": "Habitat",
+        "summary_default": "Land or water surface",
+        "summary_examples": "Subsurface, atmospheric, vacuum",
+        "boundary_default": "Solid planetary surface or open water body",
+        "boundary_examples": "Permanently deep-subsurface, permanently atmospheric, vacuum or open-space, strictly endoparasitic, field-bound or energy-pattern entity",
+        "boundary_rule": "Surface-variant habitats remain Earth-typical (score 0), including caves and shallow subsurface burrows, deep-sea benthic zones, wetlands and marshes, deserts, ice surfaces or subglacial liquid water, and underwater environments with exotic chemistry (ammonia, methane, liquid CO\\textsubscript{2}). Score 1 only when the habitat is fundamentally non-surface and non-aquatic.",
+    },
+    "cognition": {
+        "short": "Cognition",
+        "summary_default": "Centralized nervous system",
+        "summary_examples": "Distributed, hive-level, non-neural",
+        "boundary_default": "Centralized nervous system",
+        "boundary_examples": "Distributed, hive-level, non-neural",
+        "boundary_rule": "If not described, score 0. Score 1 only if a non-centralized or non-neural architecture is explicitly described.",
+    },
+}

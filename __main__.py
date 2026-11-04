@@ -9,6 +9,7 @@ Stages can run individually or chained via ``run`` (alias: ``all``):
     python -m alienbench run                                 # full pipeline
     python -m alienbench run --from extract                  # resume from stage 2
     python -m alienbench run --to score                      # stop after stage 3
+    python -m alienbench run --model GPTSixAstra             # one model, full judge panel
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-STAGES = ["generate", "extract", "score", "analyze", "latex"]
+STAGES = ["generate", "extract", "score", "analyze", "latex", "paper"]
 
 # Model key used for pre-collected human responses (Prolific study).
 # Generation records must already exist on disk; see README.md § Human baseline.
@@ -32,6 +33,7 @@ _STAGE_DESCRIPTIONS = {
     "score":    "Stage 3: Score Ward departures",
     "analyze":  "Stage 4: Statistical analysis and figures",
     "latex":    "Stage 5: Generate LaTeX tables for results/",
+    "paper":    "Stage 6: Generate the number macros (results/key_numbers.tex)",
 }
 
 
@@ -47,30 +49,43 @@ def _stage_runner(stage: str):
         from alienbench.analyze import run
     elif stage == "latex":
         from alienbench.latex_tables import run
+    elif stage == "paper":
+        from alienbench.paper import run
     else:
         raise ValueError(f"Unknown stage: {stage}")
     return run
+
+
+# Stages that call model APIs. ``--model`` restricts these to the named
+# subject models. The analysis stages always cover the full panel.
+_API_STAGES = ("generate", "extract", "score")
+
+
+def _record_manifest(stage: str, config_path: str) -> None:
+    """Record provenance for stages that produce results in results_dir."""
+    from alienbench.config import load_config
+    from alienbench.provenance import write_run_manifest
+
+    if stage in ("analyze", "latex", "paper"):
+        cfg = load_config(config_path)
+        path = write_run_manifest(cfg, Path(cfg.results_dir), stage=stage)
+        logger.info("Updated run manifest: %s", path)
 
 
 def _run_stage(
     stage: str,
     config_path: str,
     human_models: list[str] | None = None,
+    models: list[str] | None = None,
 ) -> None:
-    from alienbench.config import load_config
-    from alienbench.provenance import write_run_manifest
-
     runner = _stage_runner(stage)
+    kwargs = {}
     if human_models and stage in _HUMAN_STAGES:
-        runner(config_path, human_models=human_models)
-    else:
-        runner(config_path)
-
-    # Record provenance for stages that produce results in results_dir
-    if stage in ("analyze", "latex"):
-        cfg = load_config(config_path)
-        path = write_run_manifest(cfg, Path(cfg.results_dir), stage=stage)
-        logger.info("Updated run manifest: %s", path)
+        kwargs["human_models"] = human_models
+    if models and stage in _API_STAGES:
+        kwargs["models"] = models
+    runner(config_path, **kwargs)
+    _record_manifest(stage, config_path)
 
 
 _DEFAULT_CONFIG = str(Path(__file__).parent / "config.yaml")
@@ -100,6 +115,22 @@ def _add_human_arg(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_model_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--model",
+        dest="models",
+        action="append",
+        default=None,
+        metavar="MODEL",
+        help=(
+            "Run generation, extraction, and scoring only for this subject "
+            "model, given as its id, key, or name from the config. May be "
+            "repeated. Every judge in the panel still scores the responses. "
+            "Analysis stages always cover every model in the config."
+        ),
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="alienbench",
@@ -117,14 +148,17 @@ def build_parser() -> argparse.ArgumentParser:
         _add_config_arg(sub)
         if stage in _HUMAN_STAGES:
             _add_human_arg(sub)
+        if stage in _API_STAGES:
+            _add_model_arg(sub)
 
     run_sub = subparsers.add_parser(
         "run",
         aliases=["all"],
-        help="Run the full pipeline (generate → extract → score → analyze → latex).",
+        help="Run the full pipeline (generate → extract → score → analyze → latex → paper).",
     )
     _add_config_arg(run_sub)
     _add_human_arg(run_sub)
+    _add_model_arg(run_sub)
     run_sub.add_argument(
         "--from",
         dest="from_stage",
@@ -150,6 +184,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["prompt", "dimensions", "judges"],
         help="Which ablation to run.",
     )
+    _add_model_arg(abl_sub)
 
     human_sub = subparsers.add_parser(
         "human",
@@ -182,16 +217,33 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.getLogger("fontTools").setLevel(logging.WARNING)  # silence per-glyph PDF font-subsetting logs
     parser = build_parser()
     args = parser.parse_args(argv)
 
     # Subparser --config wins if set, else fall back to top-level default
     config_path = getattr(args, "config", None) or _DEFAULT_CONFIG
 
+    models = getattr(args, "models", None)
+    if models:
+        # Fail before any stage runs if a name does not match the config.
+        from alienbench.config import load_config
+        try:
+            selected = load_config(config_path).only_models(models).models
+        except ValueError as e:
+            parser.error(str(e))
+        logger.info("Subject models for generation, extraction, and scoring: %s",
+                    ", ".join(selected))
+
     if args.command == "ablation":
         if args.name == "prompt":
             from alienbench.ablation_prompt import run as abl_run
-        elif args.name == "dimensions":
+            abl_run(config_path, models=models)
+            return
+        if models:
+            parser.error(f"--model applies only to `ablation prompt`. The {args.name} "
+                         "ablation reads existing scores and makes no API calls.")
+        if args.name == "dimensions":
             from alienbench.ablation_dimensions import run as abl_run
         elif args.name == "judges":
             from alienbench.ablation_judges import run as abl_run
@@ -237,10 +289,10 @@ def main(argv: list[str] | None = None) -> None:
             logger.info("=" * 60)
             logger.info("Stage: %s", stage)
             logger.info("=" * 60)
-            _run_stage(stage, config_path, human_models=human_models)
+            _run_stage(stage, config_path, human_models=human_models, models=models)
         return
 
-    _run_stage(args.command, config_path, human_models=human_models)
+    _run_stage(args.command, config_path, human_models=human_models, models=models)
 
 
 if __name__ == "__main__":

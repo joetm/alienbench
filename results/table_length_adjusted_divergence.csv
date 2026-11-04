@@ -1,3 +1,7 @@
 group_a,group_b,p_raw_metric,r_raw_metric,p_adj_metric,r_adj_metric,sign_flip,sig_flip,flipped
-baseline,constrained_no_light,1.0,0.01997777777777776,1.0,-0.00942222222222222,True,False,True
-baseline,detailed_description,1.0,0.008722222222222187,1.0,-0.03568888888888888,True,False,True
+baseline,constrained_ammonia,9.269258573420828e-14,0.36748888888888886,0.01125218686499468,-0.15903333333333336,True,False,True
+baseline,constrained_no_light,1.0,0.01137777777777782,0.0029160797505648067,-0.17581111111111114,True,True,True
+baseline,detailed_description,2.3883834660306943e-05,0.2262333333333333,1.8837819703858627e-13,-0.36377777777777776,True,False,True
+constrained_ammonia,constrained_no_light,3.642948626375682e-17,-0.4113888888888888,1.0,-0.02142222222222223,False,True,True
+constrained_ammonia,detailed_description,1.0,-0.008411111111111147,0.00020637914968615661,-0.2051333333333334,False,True,True
+constrained_no_light,detailed_description,3.53063670260554e-06,0.24362222222222218,0.0016478857807549112,-0.18248888888888892,True,False,True

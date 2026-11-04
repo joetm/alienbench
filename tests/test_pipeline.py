@@ -87,7 +87,7 @@ def make_mock_client(generation_response: str, extraction_response: str):
 
     call_counter = {"n": 0}
 
-    def fake_complete(model, prompt, temperature, max_tokens, system=None, seed=None):
+    def fake_complete(model, prompt, temperature, max_tokens, system=None, seed=None, provider=None, allow_fallbacks=False):
         call_counter["n"] += 1
         if temperature == 0.0:
             return Response(extraction_response, model, 100, 200, generation_id="mock-call-id")
@@ -128,7 +128,7 @@ class _SlowFakeClient:
     def __init__(self, cfg):
         self._cfg = cfg
 
-    def complete(self, model, prompt, temperature, max_tokens, system=None, seed=None):
+    def complete(self, model, prompt, temperature, max_tokens, system=None, seed=None, provider=None, allow_fallbacks=False):
         import time as _time
 
         from alienbench.client import Response
@@ -312,7 +312,7 @@ openrouter_base_url: https://openrouter.ai/api/v1
         from alienbench.paths import reservations_dir
 
         mock_client = MagicMock()
-        def fake_complete(model, prompt, temperature, max_tokens, system=None, seed=None):
+        def fake_complete(model, prompt, temperature, max_tokens, system=None, seed=None, provider=None, allow_fallbacks=False):
             raise MalformedOpenRouterResponse("test: empty content")
         mock_client.complete.side_effect = fake_complete
         monkeypatch.setattr(generate, "OpenRouterClient", lambda cfg: mock_client)
@@ -342,6 +342,46 @@ class TestExtractStage:
         monkeypatch.setattr(generate, "OpenRouterClient", lambda cfg: mock_client)
         monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
         generate.run(tmp_config)
+
+    def test_timestamp_is_judge_response_time(self, tmp_config, tmp_path, monkeypatch):
+        # The timestamp marks when the judge response arrived, not when the
+        # pipeline finished processing it.
+        import time as _time
+
+        from alienbench import extract
+        from alienbench.client import Response
+
+        self._run_generate(tmp_config, tmp_path, monkeypatch)
+
+        received = []
+
+        def factory(alias, cfg):
+            def fake_complete(prompt, temperature, max_tokens, system=None):
+                received.append(_time.time())
+                return Response(_make_extraction_response(), "mock-resolved-model",
+                                100, 200, generation_id="mock-judge-call-id")
+            m = MagicMock()
+            m.complete.side_effect = fake_complete
+            return m
+
+        real_parse = extract.parse_features
+
+        def slow_parse(text):
+            _time.sleep(0.2)
+            return real_parse(text)
+
+        monkeypatch.setattr(extract, "make_judge", factory)
+        monkeypatch.setattr(extract, "parse_features", slow_parse)
+        extract.run(tmp_config)
+
+        out = (
+            Path(tmp_path) / "data" / "extractions"
+            / "openai__gpt-4o-mini" / "openai__gpt-4o-mini" / "baseline" / "features.jsonl"
+        )
+        records = [json.loads(l) for l in out.read_text().splitlines() if l.strip()]
+        assert len(records) == 3
+        for rec in records:
+            assert min(abs(rec["timestamp"] - t) for t in received) < 0.1
 
     def test_creates_features_jsonl(self, tmp_config, tmp_path, monkeypatch):
         from alienbench import extract, generate
@@ -657,6 +697,26 @@ class TestScoreStage:
             assert rec["ward_score"] == 8
             assert rec["per_dimension"]["symmetry"] == 1
             assert rec["per_dimension"]["communication"] == 0
+
+    def test_score_timestamp_is_judge_response_time(self, tmp_config, tmp_path, monkeypatch):
+        # The score stage makes no API call. Each score record carries the
+        # timestamp of the judge response it was computed from.
+        import time as _time
+
+        from alienbench import score
+
+        self._run_generate_and_extract(tmp_config, tmp_path, monkeypatch)
+        _time.sleep(0.05)
+        score.run(tmp_config)
+
+        base = Path(tmp_path) / "data"
+        tail = Path("openai__gpt-4o-mini") / "openai__gpt-4o-mini" / "baseline"
+        extractions = [json.loads(l) for l in (base / "extractions" / tail / "features.jsonl").read_text().splitlines() if l.strip()]
+        scores = [json.loads(l) for l in (base / "scores" / tail / "ward_scores.jsonl").read_text().splitlines() if l.strip()]
+        extraction_ts = {e["generation_id"]: e["timestamp"] for e in extractions}
+        assert len(scores) == 3
+        for rec in scores:
+            assert rec["timestamp"] == extraction_ts[rec["generation_id"]]
 
     def test_score_skips_malformed_extraction(self, tmp_config, tmp_path, monkeypatch):
         """Defence-in-depth: a malformed extraction record must not crash score.run.

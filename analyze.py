@@ -20,6 +20,7 @@ from alienbench.paths import (
     load_ward_scores,
 )
 from alienbench.stats import (
+    BOOTSTRAP_N,
     bootstrap_ci,
     krippendorff_alpha_stratified,
     kruskal_posthoc,
@@ -28,12 +29,22 @@ from alienbench.stats import (
 
 logger = logging.getLogger(__name__)
 
+# The length-adjusted Ward rate is reported per this many completion tokens
+# (columns named ``ward_per_100``).
+TOKENS_PER_RATE_UNIT = 100
+
 # ---------------------------------------------------------------------------
 # Plot style
 # ---------------------------------------------------------------------------
 
 plt.rcParams.update({
+    # Times matches the NeurIPS body font. The fallbacks cover systems
+    # without Times New Roman. Type 42 embeds TrueType instead of Type 3.
     "font.family": "serif",
+    "font.serif": ["Times New Roman", "TeX Gyre Termes", "Nimbus Roman", "DejaVu Serif"],
+    "mathtext.fontset": "stix",
+    "pdf.fonttype": 42,
+    "ps.fonttype": 42,
     "font.size": 10,
     "axes.titlesize": 11,
     "axes.labelsize": 10,
@@ -157,7 +168,7 @@ def fig_overview_scores(ward_df: pd.DataFrame, results_dir: Path) -> None:
     his = []
     for m in model_order:
         vals = w.loc[w["subject_model"] == m, "ward_score"].to_numpy()
-        mean, lo, hi = bootstrap_ci(vals, stat_fn=np.mean, n_boot=10_000, level=0.95)
+        mean, lo, hi = bootstrap_ci(vals, stat_fn=np.mean, n_boot=BOOTSTRAP_N, level=0.95)
         means.append(mean)
         los.append(mean - lo)
         his.append(hi - mean)
@@ -528,7 +539,9 @@ def write_length_adjusted_analysis(
     if merged.empty:
         return []
 
-    merged["ward_per_100"] = merged["ward_score"] / merged["completion_tokens"] * 100.0
+    merged["ward_per_100"] = (
+        merged["ward_score"] / merged["completion_tokens"] * TOKENS_PER_RATE_UNIT
+    )
 
     merged[["generation_id", "subject_model", "prompt_variant",
             "ward_score", "completion_tokens", "ward_per_100"]].to_csv(
@@ -748,6 +761,7 @@ def write_summary(ward_df: pd.DataFrame, results_dir: Path,
 
 def run(config_path: str = "config.yaml") -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.getLogger("fontTools").setLevel(logging.WARNING)  # silence per-glyph PDF font-subsetting logs
     cfg = load_config(config_path)
     data_dir = Path(cfg.data_dir)
     results_dir = Path(cfg.results_dir)
@@ -790,7 +804,8 @@ def run(config_path: str = "config.yaml") -> None:
         fig_ward_radar_overlay,
         fig_ward_radar_small_multiples,
     )
-    fig_ward_radar_small_multiples(ward_df, results_dir)
+    from alienbench.latex_tables import load_human_scores
+    fig_ward_radar_small_multiples(ward_df, results_dir, cfg, load_human_scores(cfg))
     fig_ward_radar_overlay(ward_df, results_dir)
 
     write_summary(ward_df, results_dir, tokens_df=tokens_df, status_df=status_df)

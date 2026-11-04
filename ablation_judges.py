@@ -233,7 +233,6 @@ def _loo_table(
     n_null_permutations: int = NULL_N,
     null_seed: int = NULL_SEED,
     full_alpha: float = float("nan"),
-    same_family_map: dict[str, list[str]] | None = None,
 ) -> pd.DataFrame:
     """Leave-one-judge-out rank stability and reliability.
 
@@ -260,10 +259,6 @@ def _loo_table(
                 "alpha_cross_model": float("nan"),
                 "alpha_drop_from_full": float("nan"),
                 "alpha_drop_within_bar": False,
-                "sf_subject": "",
-                "sf_rank_in_full": float("nan"),
-                "sf_rank_in_loo": float("nan"),
-                "sf_rank_delta": float("nan"),
             })
             continue
         means = _panel_per_model_means(sub)
@@ -283,15 +278,6 @@ def _loo_table(
         else:
             alpha_drop = float("nan")
             alpha_drop_within_bar = False
-        sf_subjects = (same_family_map or {}).get(j, [])
-        sf_subject = sf_subjects[0] if sf_subjects else ""
-        sf_rank_full = _rank_of(full_means, sf_subject)
-        sf_rank_loo = _rank_of(means, sf_subject)
-        sf_rank_delta = (
-            float(sf_rank_loo - sf_rank_full)
-            if pd.notna(sf_rank_full) and pd.notna(sf_rank_loo)
-            else float("nan")
-        )
         rows.append({
             "excluded_judge": j,
             "n_judges_remaining": int(sub["judge_model"].nunique()),
@@ -311,12 +297,48 @@ def _loo_table(
             "alpha_cross_model": alpha_reduced,
             "alpha_drop_from_full": alpha_drop,
             "alpha_drop_within_bar": alpha_drop_within_bar,
-            "sf_subject": sf_subject,
-            "sf_rank_in_full": sf_rank_full,
-            "sf_rank_in_loo": sf_rank_loo,
-            "sf_rank_delta": sf_rank_delta,
         })
     return pd.DataFrame(rows)
+
+
+SF_COLUMNS = [
+    "excluded_judge", "sf_subject", "sf_rank_in_full", "sf_rank_in_loo", "sf_rank_delta",
+]
+
+
+def _same_family_table(
+    ward_df: pd.DataFrame,
+    full_means: pd.Series,
+    judges: list[str],
+    same_family_map: dict[str, list[str]],
+) -> pd.DataFrame:
+    """Rank of each same-family subject under the full and the reduced panel.
+
+    One row per (judge, subject) pair that shares a provider. A provider can
+    have several subject models (e.g. two OpenAI models), and every one of
+    them is compared against the panel that drops that provider's judge.
+    """
+    rows = []
+    for j in judges:
+        subjects = same_family_map.get(j, [])
+        if not subjects:
+            continue
+        reduced = _panel_per_model_means(ward_df[ward_df["judge_model"] != j])
+        for subject in subjects:
+            rank_full = _rank_of(full_means, subject)
+            rank_loo = _rank_of(reduced, subject)
+            rows.append({
+                "excluded_judge": j,
+                "sf_subject": subject,
+                "sf_rank_in_full": rank_full,
+                "sf_rank_in_loo": rank_loo,
+                "sf_rank_delta": (
+                    float(rank_loo - rank_full)
+                    if pd.notna(rank_full) and pd.notna(rank_loo)
+                    else float("nan")
+                ),
+            })
+    return pd.DataFrame(rows, columns=SF_COLUMNS)
 
 
 def _size_sweep(
@@ -425,10 +447,18 @@ def _format_latex_table(
     loo: pd.DataFrame,
     sweep: pd.DataFrame,
     sf_data: pd.DataFrame | None = None,
+    names: dict[str, str] | None = None,
 ) -> str:
-    """Two- or three-panel table: Panel A rank stability, Panel B reliability, Panel C same-family."""
+    """Two- or three-panel tabular: Panel A rank stability, Panel B reliability, Panel C same-family.
+
+    The float, caption, and label are authored in ``paper.tex``. ``names``
+    maps judge and subject-model ids to display names (``Config.judge_name``,
+    ``Config.model_name``).
+    """
 
     def _judge_label(m: str) -> str:
+        if names and m in names:
+            return names[m]
         parts = m.split("/", 1)
         return parts[-1].replace("_", " ")
 
@@ -553,7 +583,7 @@ def _format_latex_table(
             "",
             "\\begin{tabular}{llccc}",
             "\\toprule",
-            "Excluded judge & Same-family subject & Rank (full) & "
+            "Excluded judge & Same-family model & Rank (full) & "
             "Rank (LOO) & $\\Delta$ (LOO$-$full) \\\\",
             "\\midrule",
             *sf_lines,
@@ -562,36 +592,6 @@ def _format_latex_table(
         ]
 
     return "\n".join([
-        "\\begin{table}[t]",
-        "\\centering",
-        "\\caption{Judge panel composition. Panel A reports rank stability "
-        "under a disjoint held-out reference: each subset $S$ of $k$ judges "
-        "is compared against the aggregate of the complementary $n{-}k$ "
-        "judges via Spearman $\\rho$. Comparing $S$ against the full-panel "
-        "aggregate would be self-referential because $k/n$ of the reference "
-        "is the subset itself. The null $95\\%$ upper bound is the $97.5$th "
-        "percentile of $\\rho$ under random relabeling of models "
-        "($B=10{,}000$); cells marked $\\dag$ exceed this bound. Cells "
-        "marked $\\ddag$ clear the preregistered rank-stability bar "
-        "$\\rho_{\\text{heldout}} \\geq 0.9$. \\textsc{nd} "
-        "(not defined) marks $k=n$, where no disjoint reference exists. "
-        "Panel B reports inter-rater reliability within the reduced panel "
-        "via cross-model stratified Krippendorff $\\alpha$ on Ward total. "
-        "$\\alpha$ requires at least two raters and is \\textsc{nd} for "
-        "$k=1$; the tentative-conclusions bar is $\\alpha \\geq 0.667$. The "
-        "$\\alpha$-drop column reports $\\alpha_{\\text{full}} - "
-        "\\alpha_{\\text{reduced}}$, and $\\ddag$ marks sub-panels that "
-        "stay within the preregistered drop bar of $0.1$. The two axes "
-        "measure different quantities (model-level rank stability vs.\\ "
-        "judge-level reliability) and are reported separately. "
-        "Panel C reports same-family rank sensitivity: for each subject-judge "
-        "pair that shares a provider family, the subject model's rank under "
-        "the full three-judge panel is compared against its rank under the "
-        "two-judge panel that excludes the same-family judge. A positive "
-        "$\\Delta$ (LOO$-$full) indicates the subject ranked lower when its "
-        "same-family judge was removed, consistent with upward inflation by "
-        "self-preference.}",
-        "\\label{tab:ablation_judges}",
         "\\vspace{0.25em}",
         "\\textbf{Panel A. Rank stability (disjoint held-out reference).}",
         "\\vspace{0.25em}",
@@ -645,7 +645,6 @@ def _format_latex_table(
         "\\bottomrule",
         "\\end{tabular}",
         *panel_c,
-        "\\end{table}",
         "",
     ])
 
@@ -693,25 +692,25 @@ def run(config_path: str) -> None:
     )
     loo = _loo_table(
         ward_df, full_means, judges, full_alpha=full_alpha,
-        same_family_map=sf_map,
     )
     sweep = _size_sweep(
         ward_df, full_means, judges, full_alpha=full_alpha,
     )
 
-    if "sf_subject" in loo.columns:
-        sf_rows = loo[loo["sf_subject"].astype(str).str.len() > 0].copy()
-    else:
-        sf_rows = pd.DataFrame()
+    sf_rows = _same_family_table(ward_df, full_means, judges, sf_map)
 
     single.to_csv(results_dir / "table_ablation_judges_single.csv", index=False)
     loo.to_csv(results_dir / "table_ablation_judges_loo.csv", index=False)
     sweep.to_csv(results_dir / "table_ablation_judges_sizesweep.csv", index=False)
-    logger.info("Saved per-judge, LOO, and size-sweep CSVs")
+    sf_rows.to_csv(results_dir / "table_ablation_judges_same_family.csv", index=False)
+    logger.info("Saved per-judge, LOO, size-sweep, and same-family CSVs")
 
+    names = {j: cfg.judge_name(j) for j in cfg.judge_models}
+    names.update({m: cfg.model_name(m) for m in cfg.models})
     tex = _format_latex_table(
         single, loo, sweep,
         sf_data=sf_rows if not sf_rows.empty else None,
+        names=names,
     )
     (results_dir / "tab_ablation_judges.tex").write_text(tex)
     logger.info("Saved tab_ablation_judges.tex")

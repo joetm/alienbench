@@ -1,0 +1,22 @@
+\begin{table}[htb]
+  \centering
+  \caption{Sensitivity of the human-model comparison at the realized sample sizes ($N=100$ human responses, $n=30$ generations per model, baseline prompt). At 80\% power and a Bonferroni-corrected $\alpha' = 0.0050$ over 10 model comparisons, the design detects any gap of 1.42 Ward points ($d = 0.77$) or larger. The rightmost column reports whether the observed gap exceeds that threshold.}
+  \small
+  \label{tab:sensitivity_human}
+  \begin{tabular}{lcccc}
+    \toprule
+    Model & Ward mean & Gap vs. human & Cohen's $d$ & Detectable \\
+    \midrule
+    deepseek/deepseek-v3.2 & 6.18 & +4.25 & +2.37 & yes \\
+    qwen/qwen3-235b-a22b & 5.01 & +3.08 & +1.62 & yes \\
+    mistralai/ministral-14b-2512 & 4.96 & +3.03 & +1.52 & yes \\
+    qwen/qwen3-8b & 4.84 & +2.92 & +1.49 & yes \\
+    anthropic/claude-opus-4.7 & 4.72 & +2.80 & +1.56 & yes \\
+    meta-llama/llama-3.1-8b-instruct & 4.17 & +2.24 & +1.17 & yes \\
+    meta-llama/llama-4-maverick & 3.40 & +1.47 & +0.80 & yes \\
+    openai/gpt-5.4 & 3.14 & +1.22 & +0.69 & no \\
+    google/gemini-3.1-pro-preview & 2.92 & +1.00 & +0.56 & no \\
+    mistralai/mistral-large-2411 & 1.82 & -0.10 & -0.06 & no \\
+    \bottomrule
+  \end{tabular}
+\end{table}

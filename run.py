@@ -11,11 +11,12 @@ must be importable as a package:
     ./run.py --config test_config.yaml               # smoke test
 
 Called with no arguments, it runs the full pipeline (generate → extract →
-score → analyze → latex), which is the ``run`` subcommand of the module CLI.
+score → analyze → latex → paper), which is the ``run`` subcommand of the module CLI.
 Any arguments are forwarded verbatim to that CLI, so every subcommand and
 flag documented in README.md is available here:
 
     python3 alienbench/run.py run --from extract --to score
+    python3 alienbench/run.py --model GPTSixAstra   # one model, full judge panel
     python3 alienbench/run.py ablation judges
     python3 alienbench/run.py human sample --seed 42
 
@@ -38,7 +39,7 @@ _PROJECT_ROOT = _PACKAGE_DIR.parent
 # first argument position means the caller passed options only, and the
 # default ``run`` subcommand is inserted.
 _COMMANDS = {
-    "generate", "extract", "score", "analyze", "latex",
+    "generate", "extract", "score", "analyze", "latex", "paper",
     "run", "all", "ablation", "human",
 }
 

@@ -17,6 +17,7 @@ from typing import Protocol
 from alienbench.client import (
     OpenRouterClient,
     Response,
+    request_record,
     retry_with_backoff,
 )
 from alienbench.config import Config, JudgeOverride
@@ -71,11 +72,24 @@ class JudgeClient(Protocol):
 # OpenRouter (default)
 # ---------------------------------------------------------------------------
 
+def _finish_reason(native: str, *, cut_off: bool) -> str:
+    """Map a provider's own finish reason to the OpenRouter vocabulary.
+
+    ``length`` marks a response cut off at the output-token limit. Every
+    other reason maps to ``stop``, and the provider's reason is kept as
+    ``native_finish_reason``.
+    """
+    if cut_off:
+        return "length"
+    return "stop" if native else ""
+
+
 class _OpenRouterJudge:
     """Adapter around the existing OpenRouterClient with a fixed model id."""
 
     def __init__(self, alias: str, cfg: Config) -> None:
         self._alias = alias
+        self._provider = cfg.judge_provider_for(alias)
         self._client = OpenRouterClient(cfg)
 
     def complete(self, prompt, temperature, max_tokens, system=None):
@@ -85,6 +99,7 @@ class _OpenRouterJudge:
             temperature=temperature,
             max_tokens=max_tokens,
             system=system,
+            provider=self._provider,
         )
 
 
@@ -157,11 +172,13 @@ class _AnthropicJudge:
             kwargs["system"] = system
         return kwargs
 
-    def _format_response(self, r) -> Response:
+    def _format_response(self, r, request: dict) -> Response:
         text = "".join(
             block.text for block in r.content if getattr(block, "type", "") == "text"
         )
-        if not text.strip():
+        native = getattr(r, "stop_reason", "") or ""
+        finish = _finish_reason(native, cut_off=native == "max_tokens")
+        if not text.strip() and finish != "length":
             raise EmptyJudgeResponse(
                 f"Anthropic judge {self._model_id!r} returned no text content; "
                 f"id={getattr(r, 'id', '') or ''!r}"
@@ -173,6 +190,9 @@ class _AnthropicJudge:
             prompt_tokens=getattr(usage, "input_tokens", 0) if usage else 0,
             completion_tokens=getattr(usage, "output_tokens", 0) if usage else 0,
             generation_id=getattr(r, "id", "") or "",
+            finish_reason=finish,
+            native_finish_reason=native,
+            request=request,
         )
 
     def complete(self, prompt, temperature, max_tokens, system=None):
@@ -184,7 +204,8 @@ class _AnthropicJudge:
                 model=self._bedrock_model_id,
             )
             return self._format_response(
-                self._bedrock_client.messages.create(**kwargs)
+                self._bedrock_client.messages.create(**kwargs),
+                request_record("bedrock/messages", kwargs),
             )
 
         def call_via_anthropic() -> Response:
@@ -203,7 +224,7 @@ class _AnthropicJudge:
                     r = self._client.messages.create(**kwargs)
                 else:
                     raise
-            return self._format_response(r)
+            return self._format_response(r, request_record("anthropic/messages", kwargs))
 
         def call() -> Response:
             now = _time.monotonic()
@@ -242,12 +263,16 @@ class _AnthropicJudge:
 # ---------------------------------------------------------------------------
 
 class _OpenAIJudge:
-    def __init__(self, model_id: str, api_key: str) -> None:
+    def __init__(
+        self, model_id: str, api_key: str, service_tier: str | None = None,
+    ) -> None:
         from openai import OpenAI, RateLimitError, APIStatusError
         self._RateLimitError = RateLimitError
         self._APIStatusError = APIStatusError
         self._client = OpenAI(api_key=api_key)  # default base_url = api.openai.com
         self._model_id = model_id
+        # From the judge's provider variant, e.g. ``flex`` for ``openai/flex``.
+        self._service_tier = service_tier
 
     def complete(self, prompt, temperature, max_tokens, system=None):
         messages: list[dict] = []
@@ -256,14 +281,19 @@ class _OpenAIJudge:
         messages.append({"role": "user", "content": prompt})
 
         def call() -> Response:
-            r = self._client.chat.completions.create(
+            kwargs: dict = dict(
                 model=self._model_id,
                 messages=messages,
                 temperature=temperature,
                 max_completion_tokens=max_tokens,
             )
+            if self._service_tier:
+                kwargs["service_tier"] = self._service_tier
+            r = self._client.chat.completions.create(**kwargs)
             text = r.choices[0].message.content or ""
-            if not text.strip():
+            native = getattr(r.choices[0], "finish_reason", "") or ""
+            finish = _finish_reason(native, cut_off=native == "length")
+            if not text.strip() and finish != "length":
                 raise EmptyJudgeResponse(
                     f"OpenAI judge {self._model_id!r} returned empty content; "
                     f"id={getattr(r, 'id', '') or ''!r}"
@@ -274,6 +304,9 @@ class _OpenAIJudge:
                 prompt_tokens=r.usage.prompt_tokens if r.usage else 0,
                 completion_tokens=r.usage.completion_tokens if r.usage else 0,
                 generation_id=getattr(r, "id", "") or "",
+                finish_reason=finish,
+                native_finish_reason=native,
+                request=request_record("openai/chat.completions", kwargs),
             )
 
         def retryable(exc: BaseException) -> bool:
@@ -295,8 +328,9 @@ class _GoogleJudge:
     # the task is deterministic structured-JSON output at temperature=0.0 and
     # does not benefit from extended reasoning. Disabling thinking keeps
     # latency and cost predictable and avoids thinking tokens consuming the
-    # output budget. Some Gemini models (e.g. gemini-3.1-pro-preview) reject
-    # ``thinking_budget=0`` with a 400 — for those, we fall back to omitting
+    # output budget. Vertex accepts ``thinking_budget=0`` for
+    # gemini-3.1-pro-preview (probed 2026-10-11: no thinking tokens). Models
+    # that reject it with a 400 fall back to omitting
     # ``thinking_config`` entirely (model default) and cache the decision so
     # subsequent calls skip the disabled-thinking config immediately.
 
@@ -322,6 +356,7 @@ class _GoogleJudge:
         else:
             self._client = genai.Client(api_key=api_key)
         self._model_id = model_id
+        self._use_vertex = bool(vertex_project)
         self._supports_disabled_thinking = True
         self._thinking_probe_done = False
 
@@ -345,11 +380,12 @@ class _GoogleJudge:
                 # ourselves below; other status codes (429/5xx) still log
                 # normally so retry diagnostics remain visible.
                 with _hide_httpx_400_if(not self._thinking_probe_done):
-                    r = self._client.models.generate_content(
+                    kwargs = dict(
                         model=self._model_id,
                         contents=prompt,
                         config=self._build_config(system, temperature, max_tokens),
                     )
+                    r = self._client.models.generate_content(**kwargs)
                 self._thinking_probe_done = True
             except self._errors.APIError as e:
                 msg = str(e).lower()
@@ -369,15 +405,20 @@ class _GoogleJudge:
                         "cached for this run.",
                         self._model_id,
                     )
-                    r = self._client.models.generate_content(
+                    kwargs = dict(
                         model=self._model_id,
                         contents=prompt,
                         config=self._build_config(system, temperature, max_tokens),
                     )
+                    r = self._client.models.generate_content(**kwargs)
                 else:
                     raise
             text = r.text or ""
-            if not text.strip():
+            candidates = getattr(r, "candidates", None) or []
+            reason = getattr(candidates[0], "finish_reason", None) if candidates else None
+            native = getattr(reason, "name", None) or (str(reason) if reason else "")
+            finish = _finish_reason(native, cut_off=native == "MAX_TOKENS")
+            if not text.strip() and finish != "length":
                 raise EmptyJudgeResponse(
                     f"Google judge {self._model_id!r} returned empty content; "
                     f"id={getattr(r, 'response_id', '') or ''!r}"
@@ -389,6 +430,11 @@ class _GoogleJudge:
                 prompt_tokens=getattr(usage, "prompt_token_count", 0) or 0 if usage else 0,
                 completion_tokens=getattr(usage, "candidates_token_count", 0) or 0 if usage else 0,
                 generation_id=getattr(r, "response_id", "") or "",
+                finish_reason=finish,
+                native_finish_reason=native,
+                request=request_record(
+                    "google/vertex/generate_content" if self._use_vertex
+                    else "google/generate_content", kwargs),
             )
 
         def retryable(exc: BaseException) -> bool:
@@ -467,7 +513,9 @@ def make_judge(alias: str, cfg: Config) -> JudgeClient:
             bedrock_region=bedrock_region,
         )
     if override.provider == "openai":
-        return _OpenAIJudge(override.model_id, key)
+        # ``Config`` checks that the slug's base name is ``openai``.
+        _, _, tier = (cfg.judge_provider_for(alias) or "").partition("/")
+        return _OpenAIJudge(override.model_id, key, service_tier=tier or None)
     if override.provider == "google":
         return _GoogleJudge(override.model_id, api_key=key)
     raise ValueError(f"Unknown provider: {override.provider!r}")

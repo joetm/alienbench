@@ -14,6 +14,12 @@ import pandas as pd
 import scipy.stats as stats
 
 
+# Bootstrap resamples behind every percentile CI the paper reports.
+BOOTSTRAP_N = 10_000
+# Confidence level of every interval the paper reports.
+CI_LEVEL = 0.95
+
+
 def mean_ci(values: pd.Series, confidence: float = 0.95) -> tuple[float, float, float]:
     """Returns (mean, lower_ci, upper_ci)."""
     n = len(values)
@@ -26,7 +32,7 @@ def mean_ci(values: pd.Series, confidence: float = 0.95) -> tuple[float, float, 
 
 
 def kruskal_posthoc(df: pd.DataFrame, group_col: str, score_col: str,
-                    n_boot: int = 10_000):
+                    n_boot: int = BOOTSTRAP_N):
     """Kruskal-Wallis test + pairwise Mann-Whitney U with Bonferroni correction.
 
     Each pair reports the rank-biserial effect size with a bootstrap 95%
@@ -140,8 +146,8 @@ def krippendorff_alpha_stratified(df: pd.DataFrame, subject_col: str, judge_col:
     }
 
 
-def bootstrap_ci(values, stat_fn=np.mean, n_boot: int = 10_000,
-                 level: float = 0.95, seed: int = 1234) -> tuple[float, float, float]:
+def bootstrap_ci(values, stat_fn=np.mean, n_boot: int = BOOTSTRAP_N,
+                 level: float = CI_LEVEL, seed: int = 1234) -> tuple[float, float, float]:
     """Bootstrap percentile CI for an arbitrary scalar statistic.
 
     Returns (point_estimate, lower, upper). NaNs are dropped before
@@ -163,8 +169,8 @@ def bootstrap_ci(values, stat_fn=np.mean, n_boot: int = 10_000,
     return point, float(np.quantile(boot, q_lo)), float(np.quantile(boot, q_hi))
 
 
-def rank_biserial(group_a, group_b, n_boot: int = 10_000,
-                  level: float = 0.95,
+def rank_biserial(group_a, group_b, n_boot: int = BOOTSTRAP_N,
+                  level: float = CI_LEVEL,
                   seed: int = 1234) -> tuple[float, float, float]:
     """Rank-biserial correlation with bootstrap percentile CI.
 

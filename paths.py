@@ -30,6 +30,15 @@ def generations_path(data_dir: Path, model_id: str, prompt_id: str) -> Path:
     return data_dir / "generations" / model_dir_name(model_id) / prompt_id / "responses.jsonl"
 
 
+def cut_offs_path(records_path: Path) -> Path:
+    """Log of discarded calls cut off at the output-token limit.
+
+    Sits next to the ``responses.jsonl`` or ``features.jsonl`` it belongs to.
+    Each line is one discarded call. Downstream stages never read it.
+    """
+    return records_path.parent / "cut_offs.jsonl"
+
+
 def reservations_dir(data_dir: Path, model_id: str, prompt_id: str) -> Path:
     return data_dir / "generations" / model_dir_name(model_id) / prompt_id / "_reservations"
 
@@ -79,6 +88,32 @@ def iter_jsonl(path: Path) -> Iterator[dict]:
                     yield json.loads(line)
                 except json.JSONDecodeError as e:
                     logger.warning("Malformed JSON in %s (line %d): %s", path, lineno, e)
+
+
+# How a generation ended, from its ``finish_reason`` and the provider's
+# ``native_finish_reason``. Only "stop" is a complete response.
+ENDINGS = ("stop", "truncated", "no_finish_reason", "refusal", "other")
+
+
+def ending(record: dict) -> str:
+    """Classify how a generation record ended.
+
+    ``truncated``: cut off at ``max_tokens``. ``no_finish_reason``: the
+    provider returned none, which happens when its stream ends early.
+    ``refusal``: the provider's safety system stopped the text, which
+    OpenRouter reports as finish_reason "stop". ``other``: any other
+    reason, such as a content filter.
+    """
+    finish = record.get("finish_reason")
+    if not finish:
+        return "no_finish_reason"
+    if record.get("native_finish_reason") == "refusal":
+        return "refusal"
+    if finish == "length":
+        return "truncated"
+    if finish == "stop":
+        return "stop"
+    return "other"
 
 
 def load_completed_sample_indices(path: Path) -> set[int]:
