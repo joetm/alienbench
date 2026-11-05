@@ -111,8 +111,9 @@ def _permutation_null_rho(
     ``(null_mean, null_lo95, null_hi95)``; all three are ``NaN`` when
     fewer than three models are shared. The permutation decouples the
     reduced and full rankings while preserving the marginal distribution
-    of reduced scores, so the null is the correct reference for ρ when
-    the reduced score is a strict subset of the full.
+    of reduced scores. It also removes the part-whole overlap between the
+    two scores, so this null is a comparison with random rankings and does
+    not correct the inflation of ρ from that overlap.
     """
     common = reduced.index.intersection(full_means.index)
     if len(common) < 3:
@@ -143,10 +144,10 @@ def _leave_one_out_table(
 
     ``spearman_rho`` is biased upward because the reduced score is a
     strict subset of the full (they share nine of ten dimensions), so
-    raw ρ close to 1 is not by itself evidence of rank stability. The
-    meaningful reference is ``null_rho_hi95``: observed ρ that exceeds
-    the null 95% upper bound indicates rank preservation above chance
-    on the reduced scale. ``mad_vs_full`` captures the absolute-score
+    raw ρ close to 1 is not by itself evidence of rank stability.
+    ``null_rho_hi95`` comes from a null that removes this overlap, so
+    exceeding it indicates only that ρ is higher than for a random
+    ranking. ``mad_vs_full`` captures the absolute-score
     loss on the 0--10 Ward scale, which ρ is invariant to.
     """
     dim_cols = [f"dim_{d}" for d in DIMENSION_IDS]

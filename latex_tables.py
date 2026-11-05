@@ -15,9 +15,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from alienbench.analyze import TOKENS_PER_RATE_UNIT, length_adjusted_scores
 from alienbench.config import load_config
 from alienbench.dimensions import DIMENSION_IDS, PAPER_TEXT, WARD_DIMENSIONS  # noqa: F401
-from alienbench.paths import load_ward_scores, model_dir_name  # noqa: F401
+from alienbench.paths import load_generation_tokens, load_ward_scores, model_dir_name  # noqa: F401
 from alienbench.stats import BOOTSTRAP_N, bootstrap_ci, krippendorff_alpha
 
 logger = logging.getLogger(__name__)
@@ -100,16 +101,35 @@ def _make_score_table(
     df: pd.DataFrame,
     score_col: str,
     cfg,
+    tokens_df: pd.DataFrame | None = None,
 ) -> str:
     models = [m for m in cfg.models if not df[df["subject_model"] == m].empty]
     variants = cfg.prompt_variants
 
     avg = _judge_avg(df, score_col)
 
-    # An Overall column followed by one column per prompt variant.
-    col_spec = "l" + "c" + "c" * len(variants)
+    # Per-model mean of the per-generation rate, with its bootstrap CI.
+    rates: dict[str, tuple[float, float, float]] = {}
+    if tokens_df is not None and not tokens_df.empty:
+        adjusted, _ = length_adjusted_scores(df, tokens_df)
+        for m in models:
+            vals = adjusted.loc[adjusted["subject_model"] == m, "ward_per_100"].values
+            rates[m] = bootstrap_ci(vals, n_boot=BOOTSTRAP_N)
+
+    def _rate_rank(rate: tuple[float, float, float]) -> tuple[float, ...]:
+        # The printed mean, then the printed interval, breaks a printed tie.
+        return tuple(float(f"{x:.2f}") for x in rate)
+
+    rate_best = max(
+        (_rate_rank(r) for r in rates.values() if not np.isnan(r[0])), default=None
+    )
+
+    # An Overall column, the optional rate column, then one column per prompt
+    # variant.
+    rate_headers = [f"Ward / {TOKENS_PER_RATE_UNIT} tokens"] if rates else []
+    col_spec = "l" + "c" + "c" * len(rate_headers) + "c" * len(variants)
     col_headers = " & ".join(
-        ["Overall"] + [_short_prompt_label(v) for v in variants]
+        ["Overall"] + rate_headers + [_short_prompt_label(v) for v in variants]
     )
 
     # Per-(model, variant) mean of per-generation judge-averaged scores.
@@ -158,8 +178,16 @@ def _make_score_table(
         # Cells print means with two decimals.
         return _bold(text) if _is_winner(value, col_best, 2) else text
 
+    def _open_weights(model: str) -> bool | None:
+        info = cfg.model_info.get(model)
+        return info.open_weights if info is not None else None
+
     rows = []
-    for m in models:
+    for i, m in enumerate(models):
+        # A rule separates proprietary and open-weight models.
+        if i > 0 and None not in (_open_weights(models[i - 1]), _open_weights(m)):
+            if _open_weights(models[i - 1]) != _open_weights(m):
+                rows.append("  \\midrule")
         if not np.isnan(overall_means[m]):
             lo, hi = overall_ci[m]
             if not np.isnan(lo) and not np.isnan(hi):
@@ -172,6 +200,11 @@ def _make_score_table(
             cfg.model_name(m),
             _maybe_bold(overall_means[m], overall_col_max, overall_str),
         ]
+        if rates:
+            mean, lo, hi = rates[m]
+            rate_str = "--" if np.isnan(mean) else f"{mean:.2f}\\,[{lo:.2f}, {hi:.2f}]"
+            is_rate_best = not np.isnan(mean) and _rate_rank(rates[m]) == rate_best
+            row_cells.append(_bold(rate_str) if is_rate_best else rate_str)
         for v in variants:
             row_cells.append(
                 _maybe_bold(cell_means[(m, v.id)], col_max[v.id], cell_strs[(m, v.id)])
@@ -192,8 +225,10 @@ def _make_score_table(
     return "\n".join(lines) + "\n"
 
 
-def _make_ward_scores_table(ward_df: pd.DataFrame, cfg) -> str:
-    return _make_score_table(ward_df, "ward_score", cfg)
+def _make_ward_scores_table(
+    ward_df: pd.DataFrame, cfg, tokens_df: pd.DataFrame | None = None
+) -> str:
+    return _make_score_table(ward_df, "ward_score", cfg, tokens_df)
 
 
 def dimension_alphas(ward_df: pd.DataFrame) -> dict[str, float]:
@@ -418,9 +453,10 @@ def run(config_path: str = "config.yaml") -> None:
 
     logger.info("Ward records: %d", len(ward_df))
     human_df = load_human_scores(cfg)
+    tokens_df = load_generation_tokens(data_dir, cfg.models, cfg.prompt_variants)
 
     tables: dict[str, str] = {
-        "tab_ward_scores.tex": _make_ward_scores_table(ward_df, cfg),
+        "tab_ward_scores.tex": _make_ward_scores_table(ward_df, cfg, tokens_df),
         "tab_ward_dimensions.tex": _make_ward_dimensions_table(ward_df, cfg, human_df),
         "tab_reliability.tex": _make_reliability_table(ward_df),
         "tab_models.tex": _make_models_table(cfg),

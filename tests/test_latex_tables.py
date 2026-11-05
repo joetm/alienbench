@@ -146,6 +146,107 @@ class TestWardScoresTable:
         assert cols[1] == "Overall"
 
 
+class TestWardScoresTableOpenWeightDivider:
+    @staticmethod
+    def _table(flags):
+        models = []
+        rows = []
+        for i, (name, is_open) in enumerate(flags):
+            entry = {"id": f"org/{name}", "name": name}
+            if is_open is not None:
+                entry["open_weights"] = is_open
+            models.append(entry)
+            rows.append(_ward_row(model=f"org/{name}", gen_id=f"g{i}", judge="j1",
+                                  variant="baseline", ward=1))
+        cfg = Config(
+            models=models,
+            judge_models=["j1"],
+            prompt_variants=[{"id": "baseline", "label": "Baseline", "acronym": "Base",
+                              "name": "Baseline", "text": "Imagine a creature."}],
+        )
+        return _make_ward_scores_table(pd.DataFrame(rows), cfg).splitlines()
+
+    def test_divider_separates_proprietary_from_open_weight_rows(self):
+        lines = self._table([("One", False), ("Two", False), ("Three", True), ("Four", True)])
+        body = [l.strip() for l in lines[lines.index("  \\midrule") + 1:]]
+        assert body[0].startswith("One &")
+        assert body[1].startswith("Two &")
+        assert body[2] == "\\midrule"
+        assert body[3].startswith("Three &")
+        assert body[4].startswith("Four &")
+
+    def test_no_divider_when_all_models_share_a_group(self):
+        lines = self._table([("One", False), ("Two", False)])
+        assert lines.count("  \\midrule") == 1
+
+    def test_no_divider_without_open_weight_metadata(self):
+        lines = self._table([("One", None), ("Two", None)])
+        assert lines.count("  \\midrule") == 1
+
+
+class TestWardScoresTableLengthAdjustedColumn:
+    @staticmethod
+    def _tokens(**by_gen):
+        models = {"g1": "anthropic/claude-3.5-sonnet", "g2": "anthropic/claude-3.5-sonnet",
+                  "g3": "openai/gpt-4o", "g4": "openai/gpt-4o"}
+        return pd.DataFrame([
+            {"generation_id": g, "subject_model": models[g],
+             "prompt_variant": "baseline", "completion_tokens": n}
+            for g, n in by_gen.items()
+        ])
+
+    @staticmethod
+    def _cells(tex, name):
+        line = next(l for l in tex.splitlines() if l.strip().startswith(name))
+        return [c.strip() for c in line.split("&")]
+
+    def test_rate_column_follows_overall(self, ward_df, cfg):
+        tokens = self._tokens(g1=200, g2=100, g3=1000, g4=500)
+        tex = _make_ward_scores_table(ward_df, cfg, tokens)
+        header = next(l for l in tex.splitlines() if l.strip().startswith("Model &"))
+        cols = [c.strip(" \\") for c in header.split("&")]
+        assert cols[:3] == ["Model", "Overall", "Ward / 100 tokens"]
+        assert tex.startswith("\\begin{tabular}{lccc")
+
+    def test_rate_is_the_mean_of_per_generation_rates(self, ward_df, cfg):
+        # 4/200 and 3/100 give 2.0 and 3.0 per 100 tokens. The mean of the
+        # generation rates is 2.50. The ratio of the totals would give 2.33.
+        tokens = self._tokens(g1=200, g2=100, g3=1000, g4=500)
+        tex = _make_ward_scores_table(ward_df, cfg, tokens)
+        assert self._cells(tex, "Claude 3.5 Sonnet")[2].startswith("\\textbf{2.50\\,[")
+        assert self._cells(tex, "GPT-4o")[2].startswith("0.30\\,[")
+
+    def test_tied_rate_bolds_only_the_higher_interval(self, ward_df, cfg):
+        # Both means print as 2.50. The intervals are [2.00, 3.00] and [2.50, 2.50].
+        tokens = self._tokens(g1=200, g2=100, g3=80, g4=80)
+        tex = _make_ward_scores_table(ward_df, cfg, tokens)
+        assert "\\textbf" not in self._cells(tex, "Claude 3.5 Sonnet")[2]
+        assert self._cells(tex, "GPT-4o")[2].startswith("\\textbf{2.50\\,[2.50, 2.50]")
+
+    def test_higher_rate_outranks_a_higher_interval(self, ward_df, cfg):
+        # 2.60 [2.00, 3.20] has the higher mean and the lower interval.
+        tokens = self._tokens(g1=200, g2=93.75, g3=80, g4=80)
+        tex = _make_ward_scores_table(ward_df, cfg, tokens)
+        assert self._cells(tex, "Claude 3.5 Sonnet")[2].startswith("\\textbf{2.60\\,[")
+        assert "\\textbf" not in self._cells(tex, "GPT-4o")[2]
+
+    def test_rate_and_interval_ties_bold_every_tied_model(self, ward_df, cfg):
+        # All four generations give 2.50, so the printed cells are identical.
+        tokens = self._tokens(g1=160, g2=120, g3=80, g4=80)
+        tex = _make_ward_scores_table(ward_df, cfg, tokens)
+        assert self._cells(tex, "Claude 3.5 Sonnet")[2].startswith("\\textbf{2.50\\,[2.50, 2.50]")
+        assert self._cells(tex, "GPT-4o")[2].startswith("\\textbf{2.50\\,[2.50, 2.50]")
+
+    def test_generations_without_positive_tokens_are_excluded(self, ward_df, cfg):
+        tokens = self._tokens(g1=200, g2=0, g3=1000, g4=500)
+        tex = _make_ward_scores_table(ward_df, cfg, tokens)
+        assert "2.00\\,[2.00, 2.00]" in self._cells(tex, "Claude 3.5 Sonnet")[2]
+
+    def test_rate_column_is_omitted_without_token_data(self, ward_df, cfg):
+        tex = _make_ward_scores_table(ward_df, cfg)
+        assert "Ward / 100 tokens" not in tex
+
+
 # ---------------------------------------------------------------------------
 # _make_ward_dimensions_table
 # ---------------------------------------------------------------------------
@@ -279,6 +380,23 @@ openrouter_base_url: https://openrouter.ai/api/v1
         assert (results / "tab_ward_scores.tex").exists()
         assert (results / "tab_ward_dimensions.tex").exists()
         assert (results / "tab_reliability.tex").exists()
+
+    def test_rate_column_uses_tokens_from_generation_records(self, tmp_path):
+        import json as _json
+
+        from alienbench.paths import generations_path
+
+        cfg_path = self._write_tmp_pipeline(tmp_path)
+        path = generations_path(tmp_path / "data", "openai/gpt-4o-mini", "baseline")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("".join(
+            _json.dumps({"id": g, "completion_tokens": n}) + "\n"
+            for g, n in (("g1", 100), ("g2", 200))
+        ))
+        latex_run(cfg_path)
+        # Both generations score 2, which gives 2.0 and 1.0 per 100 tokens.
+        tex = (tmp_path / "results" / "tab_ward_scores.tex").read_text()
+        assert "1.50\\,[" in tex
 
     def test_no_op_on_empty_scores(self, tmp_path, caplog):
         cfg_text = f"""

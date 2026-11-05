@@ -128,7 +128,7 @@ def fig_violin_scores(ward_df: pd.DataFrame, results_dir: Path) -> None:
 # Figure 4: Overview — per-model point cloud + mean (95% bootstrap CI)
 # ---------------------------------------------------------------------------
 
-def fig_overview_scores(ward_df: pd.DataFrame, results_dir: Path) -> None:
+def fig_overview_scores(ward_df: pd.DataFrame, results_dir: Path, cfg) -> None:
     """Single-panel overview: one point per generation, per-model mean + CI.
 
     Ward scores are averaged across judges per generation, then rendered as
@@ -153,7 +153,7 @@ def fig_overview_scores(ward_df: pd.DataFrame, results_dir: Path) -> None:
     palette = dict(zip(variants, sns.color_palette("tab10", n_colors=len(variants))))
 
     n_models = len(model_order)
-    fig, ax = plt.subplots(figsize=(9, max(3.5, 0.45 * n_models)))
+    fig, ax = plt.subplots(figsize=(10.5, max(2.5, 0.34 * n_models)))
 
     sns.stripplot(
         data=w,
@@ -183,17 +183,18 @@ def fig_overview_scores(ward_df: pd.DataFrame, results_dir: Path) -> None:
     )
 
     ax.set_xlim(0, 10)
-    ax.set_xlabel("Ward Departure Score (0–10)")
+    ax.set_xlabel("Ward Departure Score (0–10)", fontsize=12)
     ax.set_ylabel("")
-    ax.set_title(
-        "Ward Departure Score: per-model distribution (points) and mean (95% bootstrap CI)"
-    )
+    ax.set_yticks(y_positions)
+    ax.set_yticklabels([cfg.model_name(m) for m in model_order])
+    ax.tick_params(labelsize=12)
 
     handles, labels = ax.get_legend_handles_labels()
+    condition_names = {v.id: v.display for v in cfg.prompt_variants}
     ax.legend(
-        handles, labels,
-        title="Prompt variant",
-        bbox_to_anchor=(1.02, 1), loc="upper left", fontsize=8,
+        handles, [condition_names.get(label, label) for label in labels],
+        title="Prompt variant", title_fontsize=11,
+        bbox_to_anchor=(1.02, 1), loc="upper left", fontsize=11,
         frameon=False,
     )
 
@@ -497,6 +498,37 @@ def write_departure_frequencies(ward_df: pd.DataFrame, results_dir: Path) -> lis
 # Length-adjusted Ward analysis (Ward per 100 completion tokens)
 # ---------------------------------------------------------------------------
 
+def length_adjusted_scores(
+    ward_df: pd.DataFrame,
+    tokens_df: pd.DataFrame,
+) -> tuple[pd.DataFrame, int]:
+    """Return one judge-averaged row per generation with ``ward_per_100``.
+
+    Generations with no positive completion-token count have no defined rate
+    and are excluded. Returns the rows and the number excluded.
+    """
+    w = (
+        ward_df.groupby(["generation_id", "subject_model", "prompt_variant"])["ward_score"]
+        .mean()
+        .reset_index()
+    )
+    merged = w.merge(
+        tokens_df, on=["generation_id", "subject_model", "prompt_variant"], how="inner"
+    )
+    n_before = len(merged)
+    merged = merged[merged["completion_tokens"] > 0].copy()
+    n_dropped = n_before - len(merged)
+    if n_dropped > 0:
+        logger.warning(
+            "Dropped %d rows with completion_tokens<=0 from length-adjusted analysis",
+            n_dropped,
+        )
+    merged["ward_per_100"] = (
+        merged["ward_score"] / merged["completion_tokens"] * TOKENS_PER_RATE_UNIT
+    )
+    return merged, n_dropped
+
+
 def write_length_adjusted_analysis(
     ward_df: pd.DataFrame,
     tokens_df: pd.DataFrame,
@@ -517,31 +549,9 @@ def write_length_adjusted_analysis(
     if tokens_df.empty:
         return []
 
-    w = (
-        ward_df.groupby(["generation_id", "subject_model", "prompt_variant"])["ward_score"]
-        .mean()
-        .reset_index()
-    )
-    merged = w.merge(
-        tokens_df, on=["generation_id", "subject_model", "prompt_variant"], how="inner"
-    )
+    merged, n_dropped = length_adjusted_scores(ward_df, tokens_df)
     if merged.empty:
         return []
-
-    n_before = len(merged)
-    merged = merged[merged["completion_tokens"] > 0].copy()
-    n_dropped = n_before - len(merged)
-    if n_dropped > 0:
-        logger.warning(
-            "Dropped %d rows with completion_tokens<=0 from length-adjusted analysis",
-            n_dropped,
-        )
-    if merged.empty:
-        return []
-
-    merged["ward_per_100"] = (
-        merged["ward_score"] / merged["completion_tokens"] * TOKENS_PER_RATE_UNIT
-    )
 
     merged[["generation_id", "subject_model", "prompt_variant",
             "ward_score", "completion_tokens", "ward_per_100"]].to_csv(
@@ -797,7 +807,7 @@ def run(config_path: str = "config.yaml") -> None:
     logger.info("Generating figures...")
     fig_ward_heatmap(ward_df, results_dir)
     fig_violin_scores(ward_df, results_dir)
-    fig_overview_scores(ward_df, results_dir)
+    fig_overview_scores(ward_df, results_dir, cfg)
     fig_reliability_table(ward_df, results_dir)
 
     from alienbench.radar import (

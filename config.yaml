@@ -33,7 +33,7 @@ models:
     name: "Claude Opus 5.5"
     key: ClaudeOpusFiveFive
     tier: A
-    resolved_version: null
+    resolved_version: anthropic/claude-opus-5.5-20260921
     open_weights: false
     provider: anthropic
 
@@ -65,7 +65,7 @@ models:
     name: "GPT-6 Luna"
     key: GPTSixLuna
     tier: A
-    resolved_version: null # Sep 22, 2026
+    resolved_version: openai/gpt-6-luna-20260922 # Sep 22, 2026
     open_weights: false
     provider: openai/flex
 
@@ -73,7 +73,7 @@ models:
     name: "Gemini 3.8 Flash"
     key: Gemini
     tier: A
-    resolved_version: null # Sep 2, 2026
+    resolved_version: google/gemini-3.8-flash-20260902 # Sep 2, 2026
     open_weights: false
     provider: google-ai-studio
 
@@ -81,7 +81,7 @@ models:
     name: "Grok 4.7"
     key: GrokFourSeven
     tier: A
-    resolved_version: x-ai/grok-4.7 # Sep 21, 2026
+    resolved_version: x-ai/grok-4.7-20260916 # Sep 21, 2026
     open_weights: false
     provider: xai
 
@@ -97,7 +97,7 @@ models:
     name: "DeepSeek V4.1 Flash 1017"
     key: DeepSeekFourOne
     tier: B
-    resolved_version: null # Sep 10, 2026
+    resolved_version: deepseek/deepseek-v4.1-flash-20260910 # Sep 10, 2026
     open_weights: true
     provider: decart/fp4
     # decart/fp4 left OpenRouter's endpoint list after 2026-11-03. Records
@@ -110,7 +110,7 @@ models:
     name: "Llama 4 Maverick"
     key: LlamaMaverick
     tier: B
-    resolved_version: null
+    resolved_version: meta-llama/llama-4-maverick-17b-128e-instruct
     open_weights: true
     provider: digitalocean
 
@@ -134,7 +134,7 @@ models:
     name: "Mistral Large 4"
     key: MistralLarge
     tier: B
-    resolved_version: mistralai/mistral-large-4-0
+    resolved_version: mistralai/mistral-large-4-0-20261006
     open_weights: true
     provider: mistral
 
@@ -152,7 +152,7 @@ models:
     name: "Qwen3.8 27B fp8"
     key: QwenThreeEightLarge
     tier: C
-    resolved_version: null
+    resolved_version: qwen/qwen3.8-27b-20260814
     open_weights: true
     provider: chutes/fp8
 
