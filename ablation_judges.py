@@ -442,211 +442,101 @@ def _size_sweep(
     return pd.DataFrame(rows)
 
 
-def _format_latex_table(
-    single: pd.DataFrame,
-    loo: pd.DataFrame,
-    sweep: pd.DataFrame,
-    sf_data: pd.DataFrame | None = None,
-    names: dict[str, str] | None = None,
-) -> str:
-    """Two- or three-panel tabular: Panel A rank stability, Panel B reliability, Panel C same-family.
+def _judge_label(model_id: str, names: dict[str, str] | None = None) -> str:
+    """Display name of a judge or subject model."""
+    if names and model_id in names:
+        return names[model_id]
+    return model_id.split("/", 1)[-1].replace("_", " ")
 
-    The float, caption, and label are authored in ``paper.tex``. ``names``
-    maps judge and subject-model ids to display names (``Config.judge_name``,
-    ``Config.model_name``).
-    """
 
-    def _judge_label(m: str) -> str:
-        if names and m in names:
-            return names[m]
-        parts = m.split("/", 1)
-        return parts[-1].replace("_", " ")
+def _fmt(x: float, nd: int = 2) -> str:
+    return f"{x:.{nd}f}" if pd.notna(x) else "--"
 
-    def _fmt(x: float, nd: int = 2) -> str:
-        return f"{x:.{nd}f}" if pd.notna(x) else "--"
 
-    def _rho_marker(row: pd.Series) -> str:
-        marks = ""
-        if row.get("rho_above_null_hi95", False):
-            marks += "\\dag"
-        if row.get("rho_heldout_above_stable_bar", False):
-            marks += "\\ddag"
-        return marks
-
-    # Panel A: single-judge rows under the held-out reference.
-    single_lines = []
-    for _, row in single.iterrows():
-        rho_h = row["rho_vs_heldout"]
-        null_hi = row["null_rho_hi95"]
-        marker = _rho_marker(row)
-        rc = row["rank_changes_vs_heldout"]
-        rc_str = f"{int(rc)}" if rc >= 0 else "--"
-        single_lines.append(
-            f"{_judge_label(row['judge_model'])} & "
-            f"{int(row['n_generations'])} & {_fmt(rho_h)}{marker} & "
-            f"{_fmt(null_hi)} & {rc_str} \\\\"
-        )
-
-    # Panel A: LOO rows.
-    loo_lines = []
-    for _, row in loo.iterrows():
-        rho_h = row["rho_vs_heldout"]
-        null_hi = row["null_rho_hi95"]
-        marker = _rho_marker(row)
-        rc = row["rank_changes_vs_heldout"]
-        rc_str = f"{int(rc)}" if rc >= 0 else "--"
-        loo_lines.append(
-            f"drop {_judge_label(row['excluded_judge'])} & "
-            f"{int(row['n_judges_remaining'])} & "
-            f"{_fmt(rho_h)}{marker} & {_fmt(null_hi)} & {rc_str} \\\\"
-        )
-
-    # Panel A: size-sweep rows.
-    sweep_rs_lines = []
-    for _, row in sweep.iterrows():
-        k = int(row["k"])
-        mean_rho = row["mean_rho_vs_heldout"]
-        min_rho = row["min_rho_vs_heldout"]
-        max_null = row["max_null_rho_hi95"]
-        n_above = row["n_rho_above_null_hi95"]
-        n_sub = int(row["n_subsets"])
-        if k == len(sweep):  # k = n: held-out undefined.
-            sweep_rs_lines.append(
-                f"{k} & {n_sub} & \\textsc{{nd}} & \\textsc{{nd}} & "
-                f"\\textsc{{nd}} & \\textsc{{nd}} \\\\"
-            )
-        else:
-            n_above_str = f"{int(n_above)}/{n_sub}" if n_above >= 0 else "--"
-            sweep_rs_lines.append(
-                f"{k} & {n_sub} & {_fmt(mean_rho)} & {_fmt(min_rho)} & "
-                f"{_fmt(max_null)} & {n_above_str} \\\\"
-            )
-
-    # Panel B: reliability rows (LOO + size sweep for k >= 2).
-    loo_rel_lines = []
-    for _, row in loo.iterrows():
-        alpha = row["alpha_cross_model"]
-        drop = row.get("alpha_drop_from_full", float("nan"))
-        drop_mark = "\\ddag" if row.get("alpha_drop_within_bar", False) else ""
-        loo_rel_lines.append(
-            f"drop {_judge_label(row['excluded_judge'])} & "
-            f"{int(row['n_judges_remaining'])} & {_fmt(alpha)} & "
-            f"{_fmt(drop)}{drop_mark} \\\\"
-        )
-
-    sweep_rel_lines = []
-    for _, row in sweep.iterrows():
-        k = int(row["k"])
-        n_sub = int(row["n_subsets"])
-        if k == 1:
-            sweep_rel_lines.append(
-                f"{k} & {n_sub} & \\textsc{{nd}} & \\textsc{{nd}} & "
-                f"\\textsc{{nd}} & \\textsc{{nd}} \\\\"
-            )
-        else:
-            mean_a = row["mean_alpha_cross_model"]
-            min_a = row["min_alpha_cross_model"]
-            n_above = row["n_alpha_above_tentative"]
-            n_above_str = f"{int(n_above)}/{n_sub}" if n_above >= 0 else "--"
-            n_drop = row.get("n_alpha_drop_within_bar", -1)
-            n_drop_str = (
-                f"{int(n_drop)}/{n_sub}"
-                if pd.notna(n_drop) and int(n_drop) >= 0
-                else "--"
-            )
-            sweep_rel_lines.append(
-                f"{k} & {n_sub} & {_fmt(mean_a)} & {_fmt(min_a)} & "
-                f"{n_above_str} & {n_drop_str} \\\\"
-            )
-
-    sf_lines: list[str] = []
-    if sf_data is not None and not sf_data.empty:
-        for _, row in sf_data.iterrows():
-            full_r = row["sf_rank_in_full"]
-            loo_r = row["sf_rank_in_loo"]
-            delta = row["sf_rank_delta"]
-            sign = "+" if pd.notna(delta) and delta > 0 else ""
-            sf_lines.append(
-                f"{_judge_label(row['excluded_judge'])} & "
-                f"{_judge_label(row['sf_subject'])} & "
-                f"{_fmt(full_r, 0)} & {_fmt(loo_r, 0)} & "
-                f"{sign}{_fmt(delta, 0)} \\\\"
-            )
-
-    panel_c: list[str] = []
-    if sf_lines:
-        panel_c = [
-            "",
-            "\\vspace{0.75em}",
-            "\\textbf{Panel C. Same-family rank sensitivity.}",
-            "\\vspace{0.25em}",
-            "",
-            "\\begin{tabular}{llccc}",
-            "\\toprule",
-            "Excluded judge & Same-family model & Rank (full) & "
-            "Rank (LOO) & $\\Delta$ (LOO$-$full) \\\\",
-            "\\midrule",
-            *sf_lines,
-            "\\bottomrule",
-            "\\end{tabular}",
-        ]
-
+def _tabular(spec: str, header: str, rows: list[str]) -> str:
     return "\n".join([
-        "\\vspace{0.25em}",
-        "\\textbf{Panel A. Rank stability (disjoint held-out reference).}",
-        "\\vspace{0.25em}",
-        "\\begin{tabular}{lcccc}",
+        f"\\begin{{tabular}}{{{spec}}}",
         "\\toprule",
-        "Subset & $n$ gens & $\\rho_{\\text{heldout}}$ & "
-        "Null $95\\%$ hi & Rank changes \\\\",
+        f"{header} \\\\",
         "\\midrule",
-        "\\multicolumn{5}{l}{\\emph{Single judge ($k=1$)}} \\\\",
-        *single_lines,
-        "\\midrule",
-        "\\multicolumn{5}{l}{\\emph{Leave-one-judge-out ($k=n{-}1$)}} \\\\",
-        *loo_lines,
+        *rows,
         "\\bottomrule",
         "\\end{tabular}",
-        "",
-        "\\vspace{0.5em}",
-        "",
-        "\\begin{tabular}{cccccc}",
-        "\\toprule",
-        "$k$ & \\#subsets & Mean $\\rho_{\\text{heldout}}$ & "
-        "Min $\\rho_{\\text{heldout}}$ & Max null $95\\%$ hi & "
-        "\\#above null \\\\",
-        "\\midrule",
-        *sweep_rs_lines,
-        "\\bottomrule",
-        "\\end{tabular}",
-        "",
-        "\\vspace{0.75em}",
-        "\\textbf{Panel B. Inter-rater reliability (within reduced panel).}",
-        "\\vspace{0.25em}",
-        "",
-        "\\begin{tabular}{lccc}",
-        "\\toprule",
-        "Subset & $n$ judges & $\\alpha_{\\text{cross-model}}$ & "
-        "$\\alpha_{\\text{full}} - \\alpha_{\\text{reduced}}$ \\\\",
-        "\\midrule",
-        "\\multicolumn{4}{l}{\\emph{Leave-one-judge-out}} \\\\",
-        *loo_rel_lines,
-        "\\bottomrule",
-        "\\end{tabular}",
-        "",
-        "\\vspace{0.5em}",
-        "",
-        "\\begin{tabular}{cccccc}",
-        "\\toprule",
-        "$k$ & \\#subsets & Mean $\\alpha$ & Min $\\alpha$ & "
-        "\\#$\\alpha \\geq 0.667$ & \\#drop $\\leq 0.1$ \\\\",
-        "\\midrule",
-        *sweep_rel_lines,
-        "\\bottomrule",
-        "\\end{tabular}",
-        *panel_c,
         "",
     ])
+
+
+def _format_rank_table(
+    single: pd.DataFrame, names: dict[str, str] | None = None
+) -> str:
+    """Tabular of rank stability, one row per left-out judge.
+
+    With a panel of three, leaving out one judge and keeping one judge give the
+    same comparisons, so ``single`` covers both. The float, caption, and label
+    of all three judge tables are authored in ``paper.tex``.
+    """
+    rows = []
+    for _, row in single.iterrows():
+        marks = "\\dag" if row.get("rho_above_null_hi95", False) else ""
+        if row.get("rho_heldout_above_stable_bar", False):
+            marks += "\\ddag"
+        rc = row["rank_changes_vs_heldout"]
+        rows.append(
+            f"{_judge_label(row['judge_model'], names)} & "
+            f"{_fmt(row['rho_vs_heldout'])}{marks} & "
+            f"{_fmt(row['null_rho_hi95'])} & "
+            f"{int(rc) if rc >= 0 else '--'} \\\\"
+        )
+    return _tabular(
+        "lccc",
+        "Left-out judge & $\\rho$ & Upper bound & Rank changes",
+        rows,
+    )
+
+
+def _format_reliability_table(
+    loo: pd.DataFrame, names: dict[str, str] | None = None
+) -> str:
+    """Tabular of inter-rater reliability of the judges left in the panel."""
+    rows = []
+    for _, row in loo.iterrows():
+        alpha = row["alpha_cross_model"]
+        alpha_mark = "\\dag" if pd.notna(alpha) and alpha >= ALPHA_TENTATIVE else ""
+        drop_mark = "\\ddag" if row.get("alpha_drop_within_bar", False) else ""
+        drop = row.get("alpha_drop_from_full", float("nan"))
+        rows.append(
+            f"{_judge_label(row['excluded_judge'], names)} & "
+            f"{_fmt(alpha)}{alpha_mark} & ${_fmt(drop)}$ {drop_mark} \\\\"
+        )
+    return _tabular(
+        "lcc",
+        "Left-out judge & $\\alpha$ & "
+        "$\\alpha_{\\text{full}} - \\alpha$",
+        rows,
+    )
+
+
+def _format_same_family_table(
+    sf_data: pd.DataFrame | None, names: dict[str, str] | None = None
+) -> str:
+    """Tabular of each model's rank with and without its same-family judge."""
+    rows = []
+    if sf_data is not None:
+        for _, row in sf_data.iterrows():
+            rows.append(
+                f"{_judge_label(row['excluded_judge'], names)} & "
+                f"{_judge_label(row['sf_subject'], names)} & "
+                f"{_fmt(row['sf_rank_in_full'], 0)} & "
+                f"{_fmt(row['sf_rank_in_loo'], 0)} \\\\"
+            )
+    if not rows:
+        rows = ["\\multicolumn{4}{c}{No same-family pairs} \\\\"]
+    return _tabular(
+        "llcc",
+        "Left-out judge & Same-family model & Rank, all judges & "
+        "Rank, without judge",
+        rows,
+    )
 
 
 def run(config_path: str) -> None:
@@ -707,13 +597,16 @@ def run(config_path: str) -> None:
 
     names = {j: cfg.judge_name(j) for j in cfg.judge_models}
     names.update({m: cfg.model_name(m) for m in cfg.models})
-    tex = _format_latex_table(
-        single, loo, sweep,
-        sf_data=sf_rows if not sf_rows.empty else None,
-        names=names,
-    )
-    (results_dir / "tab_ablation_judges.tex").write_text(tex)
-    logger.info("Saved tab_ablation_judges.tex")
+    tables = {
+        "tab_ablation_judges_rank.tex": _format_rank_table(single, names),
+        "tab_ablation_judges_reliability.tex": _format_reliability_table(loo, names),
+        "tab_ablation_judges_same_family.tex": _format_same_family_table(
+            sf_rows if not sf_rows.empty else None, names,
+        ),
+    }
+    for name, tex in tables.items():
+        (results_dir / name).write_text(tex)
+    logger.info("Saved %s", ", ".join(tables))
 
     lines: list[str] = ["# Judge Panel Composition\n"]
     lines.append("## Full-panel per-model means\n")

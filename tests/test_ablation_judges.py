@@ -291,3 +291,39 @@ def test_permutation_null_heldout_rho_nan_for_too_few_models():
     assert pd.isna(mean)
     assert pd.isna(lo)
     assert pd.isna(hi)
+
+
+class TestSplitJudgeTables:
+    def test_each_table_is_a_single_tabular_with_its_marks(self):
+        import pandas as pd
+
+        from alienbench.ablation_judges import (
+            _format_rank_table,
+            _format_reliability_table,
+            _format_same_family_table,
+        )
+
+        single = pd.DataFrame([{
+            "judge_model": "a/judge", "rho_vs_heldout": 0.89, "null_rho_hi95": 0.65,
+            "rho_above_null_hi95": True, "rho_heldout_above_stable_bar": False,
+            "rank_changes_vs_heldout": 4,
+        }])
+        loo = pd.DataFrame([{
+            "excluded_judge": "a/judge", "alpha_cross_model": 0.94,
+            "alpha_drop_from_full": -0.03, "alpha_drop_within_bar": True,
+        }])
+        family = pd.DataFrame([{
+            "excluded_judge": "a/judge", "sf_subject": "a/model",
+            "sf_rank_in_full": 5.0, "sf_rank_in_loo": 4.0, "sf_rank_delta": -1.0,
+        }])
+        rank = _format_rank_table(single, {"a/judge": "Judge A"})
+        assert "Judge A & 0.89\\dag & 0.65 & 4" in rank
+        assert "\\ddag" not in rank
+        reliability = _format_reliability_table(loo)
+        assert "0.94\\dag & $-0.03$ \\ddag" in reliability
+        same_family = _format_same_family_table(family)
+        assert "a/judge" not in same_family and "judge & model & 5 & 4 \\\\" in same_family
+        assert "Delta" not in same_family
+        assert "No same-family pairs" in _format_same_family_table(None)
+        for table in (rank, reliability):
+            assert table.count("\\begin{tabular}") == 1

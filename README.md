@@ -334,7 +334,9 @@ Outputs in `results/`:
 | `table_ablation_judges_single.csv` | One row per single judge (ρ vs panel, rank changes) |
 | `table_ablation_judges_loo.csv` | One row per excluded judge (ρ vs full, α on reduced panel) |
 | `table_ablation_judges_sizesweep.csv` | One row per panel size `k` with aggregate ρ and α |
-| `tab_ablation_judges.tex` | LaTeX table for `\input{}` into the paper |
+| `tab_ablation_judges_rank.tex` | LaTeX table of rank stability for `\input{}` into the paper |
+| `tab_ablation_judges_reliability.tex` | LaTeX table of inter-rater reliability for `\input{}` into the paper |
+| `tab_ablation_judges_same_family.tex` | LaTeX table of same-family rank changes for `\input{}` into the paper |
 | `summary_ablation_judges.txt` | Text summary: held-out ρ ranges, α ranges, and preregistered-threshold pass counts ($\rho_{\text{heldout}} \geq 0.9$, $\alpha_{\text{full}} - \alpha_{\text{reduced}} \leq 0.1$, $\alpha \geq 0.667$) |
 
 ---
@@ -579,7 +581,9 @@ alienbench/results/
   table_ablation_judges_single.csv         # Judge ablation: per-judge vs panel
   table_ablation_judges_loo.csv            # Judge ablation: leave-one-judge-out
   table_ablation_judges_sizesweep.csv      # Judge ablation: size-k sweep
-  tab_ablation_judges.tex                  # Judge ablation: LaTeX table
+  tab_ablation_judges_rank.tex             # Judge ablation: rank stability table
+  tab_ablation_judges_reliability.tex      # Judge ablation: reliability table
+  tab_ablation_judges_same_family.tex      # Judge ablation: same-family table
   summary_ablation_judges.txt              # Judge ablation: text summary
 ```
 

@@ -701,8 +701,30 @@ def best_single_feature_macros(m: Macros, ward_df: pd.DataFrame) -> None:
     rhos = {d: _spearman(_per_model_mean_from_subset(ward_df, (d,)), full)
             for d in DIMENSION_IDS}
     best = max(rhos, key=rhos.get)
-    m.put("DimBestSingleDim", DIMENSION_LABELS[best].lower())
+    m.put("DimBestSingleDim", DIMENSION_LABELS[best])
     m.put("DimBestSingleRho", f(rhos[best]))
+
+
+def typical_subset_macros(m: Macros, ward_df: pd.DataFrame) -> None:
+    """Post hoc summary of all feature subsets, not only the best one per size."""
+    from itertools import combinations
+
+    cols = [f"dim_{d}" for d in DIMENSION_IDS]
+    # Judges averaged per generation, then generations per model. A subset score
+    # is a sum of features, so its model mean is the sum of these feature means.
+    rates = (ward_df.groupby(["generation_id", "subject_model"])[cols].mean()
+             .groupby("subject_model").mean())
+    full = rates.sum(axis=1)
+    medians = {
+        k: float(np.median([_spearman(rates[list(s)].sum(axis=1), full)
+                            for s in combinations(cols, k)]))
+        for k in range(1, len(cols))
+    }
+    m.put("DimSubsetMedianRhoOne", f(medians[1]))
+    at_bar = [k for k, rho in medians.items() if rho >= DIM_RHO_THRESHOLD]
+    m.put("DimSubsetMedianRhoBarK", min(at_bar) if at_bar else "--")
+    corr = rates.corr(method="spearman").to_numpy()
+    m.put("DimFeatureMeanRho", f(corr[np.triu_indices_from(corr, k=1)].mean()))
 
 
 def judge_ablation_macros(m: Macros, cfg: Config, results_dir: Path) -> None:
@@ -725,6 +747,7 @@ def judge_ablation_macros(m: Macros, cfg: Config, results_dir: Path) -> None:
         m.put(f"Judge{label}RhoMax", f(df["rho_vs_heldout"].max()))
         m.put(f"Judge{label}NAboveNull", word(int(df["rho_above_null_hi95"].sum())))
         m.put(f"Judge{label}NClearBar", word(int(df["rho_heldout_above_stable_bar"].sum())))
+        m.put(f"Judge{label}NClearBarCap", cap(word(int(df["rho_heldout_above_stable_bar"].sum()))))
         m.put(f"Judge{label}NullHi", f(df["null_rho_hi95"].max()))
         m.put(f"Judge{label}NMissBar", int((~df["rho_heldout_above_stable_bar"]).sum()))
     missed = single[~single["rho_heldout_above_stable_bar"]]
@@ -792,6 +815,7 @@ def build_macros(cfg: Config) -> Macros:
     prompt_ablation_macros(m, cfg, results_dir)
     dimension_ablation_macros(m, cfg, results_dir)
     best_single_feature_macros(m, ward_df)
+    typical_subset_macros(m, ward_df)
     judge_ablation_macros(m, cfg, results_dir)
     # A capitalized twin of every count word, for sentence-initial use.
     for name in [n for n in m if n.endswith("Word")]:

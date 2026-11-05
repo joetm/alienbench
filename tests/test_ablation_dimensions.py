@@ -208,3 +208,20 @@ def test_preregistered_thresholds_are_exposed():
     # Guard the API contract: these are referenced in the paper prose.
     assert RHO_THRESHOLD == 0.9
     assert TAU_THRESHOLD == 0.8
+
+
+def test_latex_table_shows_rank_changes_and_median_without_null_column():
+    from alienbench.ablation_dimensions import _format_latex_table
+
+    loo = pd.DataFrame([{
+        "dropped_dimension": "habitat", "spearman_rho": 0.99, "mad_vs_full": 0.17,
+        "rank_changes": 2, "departure_rate": 0.17, "null_rho_hi95": 0.65,
+    }])
+    summary = pd.DataFrame([{
+        "k": 1, "n_subsets": 10, "median_rho": 0.49, "best_rho": 0.95,
+        "best_tau": 0.87, "min_mad": 4.12,
+    }])
+    tex = _format_latex_table(loo, summary)
+    assert "& 0.99 & 0.17 & 2 \\\\" in tex
+    assert "1 & 10 & 0.49 & 0.95 & 0.87 & 4.12 \\\\" in tex
+    assert "dagger" not in tex and "null" not in tex and "Departure rate" not in tex

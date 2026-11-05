@@ -12,7 +12,7 @@ Each sentence carries a tag:
 
 Case notes say which case applies. *Check by hand* lists judgments the script cannot make.
 
-Summary: 111 sentences. 25 in paper, 24 commented out, 62 new wording.
+Summary: 112 sentences. 21 in paper, 26 commented out, 65 new wording.
 
 ## Abstract
 
@@ -293,28 +293,28 @@ The absolute score requires more features: its mean absolute difference from the
 
 ### Judge Panel Composition
 
-- Case: 0 single judge(s) below the rank-stability bar.
+- Case: 1 single judge(s) below the rank-stability bar.
 
 ```latex
 We remove judges from the panel and measure rank stability, inter-rater reliability, and same-family sensitivity.
 The ranking from each single judge correlates with the ranking from the remaining judges at $\rho \in [\abJudgeSingleRhoMin{}, \abJudgeSingleRhoMax{}]$.
-All \abNJudgesWord{} single judges clear the preregistered bar of $\rho \geq \abJudgeRhoBar{}$.
+Of the \abNJudgesWord{} single judges, \abJudgeSingleNClearBar{} clear the preregistered bar of $\rho \geq \abJudgeRhoBar{}$, and \abJudgeMissName{} reaches $\rho = \abJudgeMissRho{}$.
 Panels without one judge have Krippendorff's $\alpha$ between \abJudgeLooAlphaMin{} and \abJudgeLooAlphaMax{}.
 Self-preference would predict a lower rank for a model after removal of the judge from its own model family.
-Across the \abSfNPairsWord{} same-family pairs, the rank is unchanged for all of them.
+Across the \abSfNPairsWord{} same-family pairs, the rank is unchanged for \abSfNZeroWord{} and higher for \abSfNNegativeWord{}.
 ```
 
 > We remove judges from the panel and measure rank stability, inter-rater reliability, and same-family sensitivity. <sub>[**new wording**]</sub>
 >
-> The ranking from each single judge correlates with the ranking from the remaining judges at $\rho \in [0.93, 0.98]$. <sub>[**new wording**]</sub>
+> The ranking from each single judge correlates with the ranking from the remaining judges at $\rho \in [0.89, 0.99]$. <sub>[**new wording**]</sub>
 >
-> All three single judges clear the preregistered bar of $\rho \geq 0.9$. <sub>[**new wording**]</sub>
+> Of the three single judges, two clear the preregistered bar of $\rho \geq 0.9$, and Claude Opus 4.6 reaches $\rho = 0.89$. <sub>[**new wording**]</sub>
 >
 > Panels without one judge have Krippendorff's $\alpha$ between 0.87 and 0.94. <sub>[**new wording**]</sub>
 >
 > Self-preference would predict a lower rank for a model after removal of the judge from its own model family. <sub>[**new wording**]</sub>
 >
-> Across the four same-family pairs, the rank is unchanged for all of them. <sub>[**new wording**]</sub>
+> Across the four same-family pairs, the rank is unchanged for three and higher for one. <sub>[**new wording**]</sub>
 
 ## Discussion
 
@@ -460,14 +460,14 @@ The present results do not establish whether the effect is stronger in harsh env
 
 ### Ablation sentence ("The feature and judge ablations show ...")
 
-- Case: Rubrics: smallest subset reaching the rho bar k = 1. Panels: all leave-one-judge-out panels clear the bar = True. Absolute score: MAD below the bar from k = 7.
+- Case: Rubrics: smallest subset reaching the rho bar k = 1. Panels: all leave-one-judge-out panels clear the bar = False. Absolute score: MAD below the bar from k = 7.
 - **Check by hand:** The paper's version adds 'and the full three-judge panel'. No analysis in the paper measures the absolute score under reduced panels (the judge ablation reports rank and alpha only), so this version drops that clause.
 
 ```latex
-The feature and judge ablations show that per-model rankings are recoverable from reduced rubrics and reduced panels, while the absolute Ward Departure Score requires at least \abDimMadBelowOneKWord{} of the \abNDimsWord{} features to stabilize.
+The feature and judge ablations show that per-model rankings are recoverable from reduced rubrics but not from every reduced panel, while the absolute Ward Departure Score requires at least \abDimMadBelowOneKWord{} of the \abNDimsWord{} features to stabilize.
 ```
 
-> The feature and judge ablations show that per-model rankings are recoverable from reduced rubrics and reduced panels, while the absolute Ward Departure Score requires at least seven of the ten features to stabilize. <sub>[**new wording**]</sub>
+> The feature and judge ablations show that per-model rankings are recoverable from reduced rubrics but not from every reduced panel, while the absolute Ward Departure Score requires at least seven of the ten features to stabilize. <sub>[**new wording**]</sub>
 
 ## Appendix: Ablation Details
 
@@ -504,9 +504,9 @@ MAD is numerically equal to each feature's departure rate and ranges from $\abDi
 \abDimRankPreservedDims{} are the only features whose removal preserves the per-model rank exactly (\autoref{tab:ablation_dimensions}).
 ```
 
-> Across the ten features, $\rho$ spans $[0.93, 1.00]$ and every feature exceeds its null $95%$ upper bound of at most $0.68$. <sub>[in paper]</sub>
+> Across the ten features, $\rho$ spans $[0.93, 1.00]$ and every feature exceeds its null $95%$ upper bound of at most $0.65$. <sub>[**commented out in paper**]</sub>
 >
-> MAD is numerically equal to each feature's departure rate and ranges from $0.17$ Ward points (habitat) to $0.88$ (sensory organs), reflecting the contribution each feature makes to the absolute mean. <sub>[in paper]</sub>
+> MAD is numerically equal to each feature's departure rate and ranges from $0.17$ Ward points (habitat) to $0.87$ (sensory organs), reflecting the contribution each feature makes to the absolute mean. <sub>[**commented out in paper**]</sub>
 >
 > Metabolism / Energy Source and Cognitive Architecture are the only features whose removal preserves the per-model rank exactly (Table ablation_dimensions). <sub>[**new wording**]</sub>
 
@@ -518,20 +518,23 @@ MAD is numerically equal to each feature's departure rate and ranges from $\abDi
 The full ranking can therefore be recovered from a single feature, but the absolute Ward Departure Score requires at least $\abDimMadBelowOneK{}$ features: minimum MAD at $k{=}\abDimMinKRho{}$ is $\abDimMinMadAtMinK{}$ Ward points and MAD falls below $\abParaMadBar{}$ only at $k{=}\abDimMadBelowOneK{}$.
 ```
 
-> The full ranking can therefore be recovered from a single feature, but the absolute Ward Departure Score requires at least $7$ features: minimum MAD at $k{=}1$ is $4.09$ Ward points and MAD falls below $1.0$ only at $k{=}7$. <sub>[**new wording**]</sub>
+> The full ranking can therefore be recovered from a single feature, but the absolute Ward Departure Score requires at least $7$ features: minimum MAD at $k{=}1$ is $4.12$ Ward points and MAD falls below $1.0$ only at $k{=}7$. <sub>[**new wording**]</sub>
 
 ### Judge Panel Composition, Rank Stability (results)
 
-- Case: Single-judge misses: 0. Leave-one-out misses: 0.
+- Case: Single-judge misses: 1. Leave-one-out misses: 1.
 
 ```latex
 Single-judge held-out $\rho$ spans $[\abJudgeSingleRhoMin{}, \abJudgeSingleRhoMax{}]$ and \abJudgeSingleNAboveNull{} of \abNJudgesWord{} single judges exceed their null $\abCILevel{}\%$ upper bound of at most $\abJudgeSingleNullHi{}$, with \abJudgeSingleNClearBar{} of \abNJudgesWord{} clearing this bar.
-The \abNJudgesWord{} leave-one-judge-out sub-panels span $[\abJudgeLooRhoMin{}, \abJudgeLooRhoMax{}]$ and clear the bar at \abJudgeLooNClearBar{} of \abNJudgesWord{} (Panel~A of \autoref{tab:ablation_judges}).
+The \abNJudgesWord{} leave-one-judge-out sub-panels span $[\abJudgeLooRhoMin{}, \abJudgeLooRhoMax{}]$ and clear the bar at \abJudgeLooNClearBar{} of \abNJudgesWord{}.
+Both misses involve \abJudgeMissName{}: the judge alone ($k{=}1$) and the panel without it ($k{=}\abNJudgesMinusOne{}$) each reach $\rho{=}\abJudgeMissRho{}$ (Panel~A of \autoref{tab:ablation_judges}).
 ```
 
-> Single-judge held-out $\rho$ spans $[0.93, 0.98]$ and three of three single judges exceed their null $95%$ upper bound of at most $0.68$, with three of three clearing this bar. <sub>[in paper]</sub>
+> Single-judge held-out $\rho$ spans $[0.89, 0.99]$ and three of three single judges exceed their null $95%$ upper bound of at most $0.64$, with two of three clearing this bar. <sub>[**new wording**]</sub>
 >
-> The three leave-one-judge-out sub-panels span $[0.93, 0.98]$ and clear the bar at three of three (Panel A of Table ablation_judges). <sub>[in paper]</sub>
+> The three leave-one-judge-out sub-panels span $[0.89, 0.99]$ and clear the bar at two of three. <sub>[**new wording**]</sub>
+>
+> Both misses involve Claude Opus 4.6: the judge alone ($k{=}1$) and the panel without it ($k{=}2$) each reach $\rho{=}0.89$ (Panel A of Table ablation_judges). <sub>[**new wording**]</sub>
 
 ### Judge Panel Composition, Inter-Rater Reliability (results)
 
@@ -554,16 +557,16 @@ Without \abJudgeNameGPT{}, $\alpha$ is $\abJudgeLooAlphaGPT{}$ (Panel~B of \auto
 
 ### Judge Panel Composition, Same-Family Sensitivity (results)
 
-- Case: Rank change of the same-family pairs: zero 4, negative 0, positive 0.
+- Case: Rank change of the same-family pairs: zero 3, negative 1, positive 0.
 
 ```latex
 A zero $\Delta$, which indicates no change, occurs for \abSfNZeroWord{} of the \abSfNPairsWord{} pairs (\abSfZeroModels{}).
-No pair has a negative $\Delta$, the opposite direction from self-preference.
+A negative $\Delta$, the opposite direction from self-preference, occurs for \abSfNNegativeWord{} of the pairs (\abSfNegativeModels{}).
 No same-family pair shows positive $\Delta$ ($\abSfNPositive{}$ of $\abSfNPairs{}$), so we find no rank-level evidence of self-preference inflation in the panel (Panel~C of \autoref{tab:ablation_judges}).
 ```
 
-> A zero $\Delta$, which indicates no change, occurs for four of the four pairs (Claude Opus 5.5, Gemini 3.8 Flash, GPT-6 Astra, and GPT-6 Luna). <sub>[in paper]</sub>
+> A zero $\Delta$, which indicates no change, occurs for three of the four pairs (Gemini 3.8 Flash, GPT-6 Astra, and GPT-6 Luna). <sub>[in paper]</sub>
 >
-> No pair has a negative $\Delta$, the opposite direction from self-preference. <sub>[**new wording**]</sub>
+> A negative $\Delta$, the opposite direction from self-preference, occurs for one of the pairs (Claude Opus 5.5). <sub>[**new wording**]</sub>
 >
 > No same-family pair shows positive $\Delta$ ($0$ of $4$), so we find no rank-level evidence of self-preference inflation in the panel (Panel C of Table ablation_judges). <sub>[in paper]</sub>

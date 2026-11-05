@@ -6,6 +6,7 @@ subject_model
 mistralai/ministral-14b-2512    6.548
 x-ai/grok-4.7                   5.420
 mistralai/mistral-large-4-0     5.413
+qwen/qwen3.8-27b                5.233
 anthropic/claude-opus-5.5       5.143
 deepseek/deepseek-v4.1-flash    4.972
 meta-llama/llama-4-maverick     4.835
@@ -16,31 +17,31 @@ openai/gpt-6-luna               3.276
 ## Leave-one-out (sorted by departure rate)
 
 dropped_dimension  departure_rate  spearman_rho  null_rho_mean  null_rho_lo95  null_rho_hi95  rho_above_null_hi95  mad_vs_full  rank_changes  rank_preserved
-   sensory_organs           0.877         0.996          0.002         -0.669          0.678                 True        0.877             2           False
-        body_plan           0.709         0.967          0.002         -0.667          0.683                 True        0.709             4           False
-    skin_covering           0.564         0.967          0.003         -0.667          0.683                 True        0.564             4           False
-       locomotion           0.536         0.967          0.002         -0.667          0.683                 True        0.536             4           False
-       metabolism           0.473         1.000          0.002         -0.667          0.683                 True        0.473             0            True
-    communication           0.457         0.967          0.002         -0.667          0.683                 True        0.457             4           False
-     reproduction           0.443         0.933          0.001         -0.667          0.683                 True        0.443             5           False
-         symmetry           0.430         0.983          0.002         -0.667          0.683                 True        0.430             2           False
-        cognition           0.306         1.000          0.002         -0.667          0.683                 True        0.306             0            True
-          habitat           0.169         0.983          0.001         -0.683          0.683                 True        0.169             2           False
+   sensory_organs           0.873         0.997          0.000         -0.644          0.632                 True        0.873             2           False
+        body_plan           0.701         0.976         -0.001         -0.648          0.624                 True        0.701             4           False
+    skin_covering           0.561         0.952          0.000         -0.636          0.636                 True        0.561             5           False
+       locomotion           0.543         0.964         -0.000         -0.636          0.636                 True        0.543             6           False
+       metabolism           0.480         1.000          0.000         -0.648          0.636                 True        0.480             0            True
+    communication           0.479         0.964         -0.000         -0.636          0.636                 True        0.479             6           False
+     reproduction           0.437         0.927          0.001         -0.636          0.636                 True        0.437             6           False
+         symmetry           0.430         0.988         -0.000         -0.636          0.624                 True        0.430             2           False
+        cognition           0.317         1.000          0.000         -0.648          0.636                 True        0.317             0            True
+          habitat           0.171         0.988          0.001         -0.648          0.648                 True        0.171             2           False
 
 LOO note: raw ρ is inflated because the reduced score is a strict subset of the full score. The meaningful comparison is whether ρ exceeds the permutation null 95% upper bound (column ``null_rho_hi95``); MAD reports the absolute-score loss on the 0--10 Ward scale, which ρ is invariant to.
 
 ## Subset-size summary (preregistered thresholds: ρ ≥ 0.9, τ ≥ 0.8)
 
  k  n_subsets  best_rho  best_tau  min_mad  n_rho_above_thresh  n_tau_above_thresh
- 1         10     0.933     0.833    4.088                   1                   1
- 2         45     0.967     0.889    3.378                  12                   8
- 3        120     0.983     0.944    2.815                  33                  22
- 4        210     1.000     1.000    2.278                  71                  60
- 5        252     1.000     1.000    1.805                 126                  95
- 6        210     1.000     1.000    1.348                 134                 107
- 7        120     1.000     1.000    0.905                  98                  83
- 8         45     1.000     1.000    0.475                  43                  36
- 9         10     1.000     1.000    0.169                  10                  10
+ 1         10     0.952     0.867    4.119                   1                   1
+ 2         45     0.952     0.867    3.419                   4                   3
+ 3        120     0.988     0.956    2.857                  18                  14
+ 4        210     0.976     0.911    2.314                  52                  44
+ 5        252     0.988     0.956    1.834                  84                  74
+ 6        210     1.000     1.000    1.355                 109                  95
+ 7        120     1.000     1.000    0.918                  88                  77
+ 8         45     1.000     1.000    0.488                  39                  35
+ 9         10     1.000     1.000    0.171                  10                  10
 10          1     1.000     1.000    0.000                   1                   1
 
 Observed min-k (best ρ ≥ 0.9): 1
@@ -49,5 +50,5 @@ Observed min-k (best τ ≥ 0.8): 1
 ## Permutation null on min-k (B=1000, seed=1)
 
 Under H0 (reduced rankings independent of full), min-k is inflated by the multiple-comparisons burden of C(10, k) subsets per size.
-Null min-k (ρ): 5th percentile = 2.0, median = 6.0; p(null min-k ≤ observed) = 0.007
-Null min-k (τ): 5th percentile = 3.0, median = 11.0; p(null min-k ≤ observed) = 0.004
+Null min-k (ρ): 5th percentile = 3.0, median = 11.0; p(null min-k ≤ observed) = 0.002
+Null min-k (τ): 5th percentile = 4.0, median = 11.0; p(null min-k ≤ observed) = 0.001

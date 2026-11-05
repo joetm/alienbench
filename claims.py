@@ -507,7 +507,9 @@ STAGE_OUTPUTS = {
     "ablation prompt": ["table_ablation_prompt.csv", "tab_ablation_prompt.tex"],
     "ablation dimensions": ["table_ablation_dimensions_loo.csv", "tab_ablation_dimensions.tex"],
     "ablation judges": ["table_ablation_judges_loo.csv",
-                        "table_ablation_judges_same_family.csv", "tab_ablation_judges.tex"],
+                        "table_ablation_judges_same_family.csv", "tab_ablation_judges_rank.tex",
+                        "tab_ablation_judges_reliability.tex",
+                        "tab_ablation_judges_same_family.tex"],
 }
 
 

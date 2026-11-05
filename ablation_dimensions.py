@@ -233,12 +233,14 @@ def _subset_size_summary(
         n_tau_above = 0
         best_rho_sub: tuple[str, ...] | None = None
         best_tau_sub: tuple[str, ...] | None = None
+        rhos: list[float] = []
         for subset in combinations(DIMENSION_IDS, k):
             reduced = _per_model_mean_from_subset(ward_df, subset)
             rho = _spearman(reduced, full_means)
             tau = _kendall_tau(reduced, full_means)
             mad = _mad_series(reduced, full_means)
             if pd.notna(rho):
+                rhos.append(float(rho))
                 if rho > best_rho or (
                     rho == best_rho and pd.notna(mad) and mad < min_mad
                 ):
@@ -259,6 +261,7 @@ def _subset_size_summary(
         summary_rows.append({
             "k": k,
             "n_subsets": len(list(combinations(DIMENSION_IDS, k))),
+            "median_rho": float(np.median(rhos)) if rhos else float("nan"),
             "best_rho": best_rho if best_rho != float("-inf") else float("nan"),
             "best_tau": best_tau if best_tau != float("-inf") else float("nan"),
             "min_mad": min_mad if min_mad != float("inf") else float("nan"),
@@ -388,56 +391,43 @@ def _format_latex_table(
     loo: pd.DataFrame,
     size_summary: pd.DataFrame,
 ) -> str:
-    """Two-panel tabular: LOO + null-adjusted subset search summary.
+    """Two tabulars: leave-one-out results and the subset search summary.
 
     The float, caption, and label are authored in ``paper.tex``. The observed
-    min-k, the null 5th percentiles, and the permutation p-values the caption
-    quotes are the ``\\abDim...`` macros of ``alienbench.paper``.
+    min-k and the permutation p-values the prose quotes are the ``\\abDim...``
+    macros of ``alienbench.paper``.
 
-    The LOO panel reports raw ρ alongside the permutation null 95% upper
-    bound; cells whose ρ exceeds the null bound are marked ``$^\\dagger$``
-    and MAD is shown to quantify absolute-score loss. The subset-search
-    panel uses continuous criteria (Spearman ρ, Kendall τ) rather than
-    exact rank preservation.
+    MAD equals the departure rate of the removed feature, so the leave-one-out
+    table shows it once. The permutation null of the leave-one-out analysis
+    stays in the CSV, because it removes the overlap between the two scores
+    and does not support an interpretation in the paper.
     """
-    loo_sorted = loo.sort_values("departure_rate", ascending=False)
+
+    def _num(value: float) -> str:
+        return f"{float(value):.2f}" if pd.notna(value) else "--"
+
+    loo_sorted = loo.sort_values("mad_vs_full", ascending=False)
     loo_lines = []
     for _, row in loo_sorted.iterrows():
-        rho = row["spearman_rho"]
-        hi = row["null_rho_hi95"]
-        rho_str = "--"
-        if pd.notna(rho):
-            mark = (
-                "$^\\dagger$"
-                if (pd.notna(hi) and float(rho) > float(hi))
-                else ""
-            )
-            rho_str = f"{float(rho):.2f}{mark}"
-        hi_str = f"{float(hi):.2f}" if pd.notna(hi) else "--"
-        mad = row["mad_vs_full"]
-        mad_str = f"{float(mad):.2f}" if pd.notna(mad) else "--"
+        changes = int(row["rank_changes"])
         loo_lines.append(
             f"{DIMENSION_LABELS.get(row['dropped_dimension'], row['dropped_dimension'])} & "
-            f"{row['departure_rate']:.2f} & {rho_str} & {hi_str} & {mad_str} \\\\"
+            f"{_num(row['spearman_rho'])} & {_num(row['mad_vs_full'])} & "
+            f"{changes if changes >= 0 else '--'} \\\\"
         )
 
     size_lines = []
     for _, row in size_summary.iterrows():
-        best_rho = row["best_rho"]
-        best_tau = row["best_tau"]
-        min_mad = row["min_mad"]
-        rho_s = f"{float(best_rho):.2f}" if pd.notna(best_rho) else "--"
-        tau_s = f"{float(best_tau):.2f}" if pd.notna(best_tau) else "--"
-        mad_s = f"{float(min_mad):.2f}" if pd.notna(min_mad) else "--"
         size_lines.append(
             f"{int(row['k'])} & {int(row['n_subsets'])} & "
-            f"{rho_s} & {tau_s} & {mad_s} \\\\"
+            f"{_num(row['median_rho'])} & {_num(row['best_rho'])} & "
+            f"{_num(row['best_tau'])} & {_num(row['min_mad'])} \\\\"
         )
 
     return "\n".join([
-        "\\begin{tabular}{lcccc}",
+        "\\begin{tabular}{lccc}",
         "\\toprule",
-        "Dropped feature & Departure rate & $\\rho$ vs full & $\\rho$ null $95\\%$ hi & MAD \\\\",
+        "Removed feature & $\\rho$ & MAD & Rank changes \\\\",
         "\\midrule",
         *loo_lines,
         "\\bottomrule",
@@ -445,9 +435,9 @@ def _format_latex_table(
         "",
         "\\vspace{0.5em}",
         "",
-        "\\begin{tabular}{ccccc}",
+        "\\begin{tabular}{cccccc}",
         "\\toprule",
-        "$k$ & \\#subsets & Best $\\rho$ & Best $\\tau$ & Min MAD \\\\",
+        "$k$ & \\#subsets & Median $\\rho$ & Best $\\rho$ & Best $\\tau$ & Min MAD \\\\",
         "\\midrule",
         *size_lines,
         "\\bottomrule",
