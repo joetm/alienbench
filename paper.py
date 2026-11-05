@@ -48,6 +48,8 @@ from alienbench.ablation_dimensions import (
     RHO_THRESHOLD as DIM_RHO_THRESHOLD,
     SUBSET_NULL_N,
     TAU_THRESHOLD as DIM_TAU_THRESHOLD,
+    _per_model_mean_from_subset,
+    _spearman,
 )
 from alienbench.ablation_judges import (
     ALPHA_DROP_THRESHOLD,
@@ -605,6 +607,7 @@ def prompt_ablation_macros(m: Macros, cfg: Config, results_dir: Path) -> None:
     n_pairs = len(off)
     m.put("ParaN", cfg.prompt_ablation_samples_per_condition)
     m.put("ParaNPairs", n_pairs)
+    m.put("ParaNUniquePairs", len({frozenset(p) for p in zip(off["pair_a"], off["pair_b"])}))
     m.put("ParaNPermutations", thousands(PARA_NULL_N))
     m.put("ParaRhoBar", f(PARA_RHO_THRESHOLD, 1))
     m.put("ParaMadBar", f(MAD_STABLE_THRESHOLD, 1))
@@ -627,6 +630,15 @@ def prompt_ablation_macros(m: Macros, cfg: Config, results_dir: Path) -> None:
     m.put("ParaNBothBarsWord", word(int(off["both_bars_pass"].sum())))
     # The ordered-pair counts above double-count each unordered pair. The
     # caption reports the same off-diagonal convention as the text.
+    # Rho and MAD are symmetric, so one row per unordered pair gives the same
+    # criteria counts on the scale of the unique pairs.
+    unique = off[off["pair_a"] < off["pair_b"]]
+    for name, col in (("RhoBar", "rho_above_stable_bar"),
+                      ("MadBar", "mad_below_stable_bar"),
+                      ("BothBars", "both_bars_pass")):
+        count = int(unique[col].sum())
+        m.put(f"ParaNUnique{name}", count)
+        m.put(f"ParaNUnique{name}Word", word(count))
 
     means = pd.read_csv(means_path, index_col=0)
     shift = (means.drop(columns="baseline").sub(means["baseline"], axis=0)).abs().mean(axis=1)
@@ -681,6 +693,16 @@ def dimension_ablation_macros(m: Macros, cfg: Config, results_dir: Path) -> None
     below_one = sub[sub["min_mad"] < 1.0]
     m.put("DimMadBelowOneK", int(below_one["k"].min()) if len(below_one) else "--")
     m.put("DimNSubsetDims", len(DIMENSION_IDS))
+
+
+def best_single_feature_macros(m: Macros, ward_df: pd.DataFrame) -> None:
+    """The feature whose ranking alone is closest to the ranking on all features."""
+    full = _per_model_mean_from_subset(ward_df, tuple(DIMENSION_IDS))
+    rhos = {d: _spearman(_per_model_mean_from_subset(ward_df, (d,)), full)
+            for d in DIMENSION_IDS}
+    best = max(rhos, key=rhos.get)
+    m.put("DimBestSingleDim", DIMENSION_LABELS[best].lower())
+    m.put("DimBestSingleRho", f(rhos[best]))
 
 
 def judge_ablation_macros(m: Macros, cfg: Config, results_dir: Path) -> None:
@@ -769,6 +791,7 @@ def build_macros(cfg: Config) -> Macros:
     reliability_macros(m, cfg, ward_df, results_dir)
     prompt_ablation_macros(m, cfg, results_dir)
     dimension_ablation_macros(m, cfg, results_dir)
+    best_single_feature_macros(m, ward_df)
     judge_ablation_macros(m, cfg, results_dir)
     # A capitalized twin of every count word, for sentence-initial use.
     for name in [n for n in m if n.endswith("Word")]:
